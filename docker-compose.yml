@@ -1,0 +1,39 @@
+version: '3'
+
+services:
+  tor:
+    build:
+      context: ./tor
+    container_name: tor-proxy
+    restart: unless-stopped
+    environment:
+      - TOR_START_PORT=${TOR_START_PORT:-9052}
+      - TOR_NUM_PORTS=${BATCH_COUNT:-6}
+    networks:
+      - ytnet
+
+  ytviewer:
+    build:
+      context: .
+    container_name: youtube-viewer
+    restart: unless-stopped
+    depends_on:
+      - tor
+    environment:
+      - NODE_ENV=production
+      - YOUTUBE_URLS=${YOUTUBE_URLS}
+      - TOR_ENABLED=${TOR_ENABLED:-true}
+      - TOR_HOST=tor
+      - TOR_START_PORT=${TOR_START_PORT:-9052}
+      - BATCH_COUNT=${BATCH_COUNT:-6}
+      - TOTAL_COUNT=${TOTAL_COUNT:-96}
+      - VIEW_ACTION_COUNT=${VIEW_ACTION_COUNT:-10}
+      - VIEW_DURATION=${VIEW_DURATION:-50}
+      - PAGE_DEFAULT_TIMEOUT=${PAGE_DEFAULT_TIMEOUT:-600}
+      - YOUTUBE_VIEWER_FORCE_DEBUG=${YOUTUBE_VIEWER_FORCE_DEBUG:-false}
+    networks:
+      - ytnet
+
+networks:
+  ytnet:
+    driver: bridge
