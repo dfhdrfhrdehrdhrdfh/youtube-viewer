@@ -2,10 +2,12 @@ version: '3'
 
 services:
   tor:
-    build:
-      context: ./tor
+    image: peterdavehello/tor-socks-proxy:latest
     container_name: tor-proxy
     restart: unless-stopped
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    volumes:
+      - ./tor/entrypoint.sh:/entrypoint.sh:ro
     environment:
       - TOR_START_PORT=${TOR_START_PORT:-9052}
       - TOR_NUM_PORTS=${BATCH_COUNT:-6}
@@ -13,8 +15,7 @@ services:
       - ytnet
 
   ytviewer:
-    build:
-      context: .
+    image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer:${IMAGE_TAG:-latest}
     container_name: youtube-viewer
     restart: unless-stopped
     depends_on:

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 START_PORT="${TOR_START_PORT:-9052}"
