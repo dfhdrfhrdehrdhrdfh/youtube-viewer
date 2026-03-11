@@ -1,0 +1,39 @@
+# =============================================================================
+# Newt Tunnel Overlay — route Tor traffic through a Newt tunnel container
+# =============================================================================
+# Usage (CLI):
+#   docker-compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d
+#
+# Usage (Arcane / Web UI):
+#   Merge this file into the main docker-compose.yml Compose field, then deploy.
+#   See README.md § "Newt Tunnel (optional)" for details.
+# =============================================================================
+#
+# Prerequisites:
+#   1. A running Newt tunnel container on the same Docker host, connected to
+#      your external VPS that runs Pangolin.
+#   2. That Newt container must be attached to a Docker network whose name you
+#      specify in NEWT_TUNNEL_NETWORK (see .env).
+#   3. The Newt container (or VPS) must have IP forwarding enabled and
+#      NAT/masquerade configured so that traffic from the tor container can
+#      exit via the VPS.
+#
+# Required .env variables when NEWT_TUNNEL_ENABLED=true:
+#   NEWT_TUNNEL_NETWORK   — Docker network name shared with the Newt container
+#   NEWT_TUNNEL_CONTAINER — Name of the Newt container (IP is auto-resolved via Docker DNS)
+# =============================================================================
+
+version: '3'
+
+services:
+  tor:
+    # NET_ADMIN is required to change the default route inside the container
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - newt_net
+
+networks:
+  newt_net:
+    external: true
+    name: ${NEWT_TUNNEL_NETWORK}
