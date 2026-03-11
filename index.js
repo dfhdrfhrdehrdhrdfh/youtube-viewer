@@ -2,7 +2,7 @@ const TorService = require('./services/tor.service');
 const startViewingHandler = require('./handlers/startViewing.handler');
 const { logger, urlReader } = require('./utils');
 const {
-  START_PORT, TOTAL_COUNT, BATCH_COUNT, VIEW_DURATION,
+  START_PORT, TOTAL_COUNT, BATCH_COUNT, VIEW_DURATION, TOR_ENABLED, TOR_HOST,
 } = require('./utils/constants');
 
 function getTargetUrls() {
@@ -18,10 +18,25 @@ function getTargetUrls() {
 async function main() {
   try {
     const targetUrls = getTargetUrls();
-    logger.info(`Preparing to generate ${TOTAL_COUNT} views. Target URL(s): ${targetUrls} Duration: ${VIEW_DURATION} seconds`);
+
+    // ── Startup banner ──────────────────────────────────────────────
+    logger.info('=============================================');
+    logger.info('  YouTube Viewer — Starting');
+    logger.info('=============================================');
+    logger.info(`Target URL(s) : ${targetUrls.join(', ')}`);
+    logger.info(`Total views   : ${TOTAL_COUNT}  (${BATCH_COUNT} parallel × ${Math.ceil(TOTAL_COUNT / BATCH_COUNT)} rounds)`);
+    logger.info(`View duration : ~${VIEW_DURATION}s (±16.6%)`);
+    logger.info(`Tor enabled   : ${TOR_ENABLED}`);
+    if (TOR_ENABLED) {
+      logger.info(`Tor host      : ${TOR_HOST}`);
+      logger.info(`SOCKS ports   : ${START_PORT}–${START_PORT + BATCH_COUNT - 1}`);
+    }
+    logger.info('=============================================');
+
     await TorService.writeTorConfig(START_PORT, BATCH_COUNT);
 
     for (let i = 0; i < Math.ceil(TOTAL_COUNT / BATCH_COUNT); i += 1) {
+      logger.info(`── Round ${i + 1} of ${Math.ceil(TOTAL_COUNT / BATCH_COUNT)} ──`);
       await startViewingHandler({
         targetUrls, durationInSeconds: VIEW_DURATION, batchCount: BATCH_COUNT, startPort: START_PORT,
       }, i);
