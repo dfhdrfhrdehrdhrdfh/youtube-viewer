@@ -11,7 +11,7 @@ log() { echo "[tor-proxy] $(date '+%H:%M:%S') $1"; }
 
 # Fetch and log the container's public uplink IP (should be VPS IP when tunnel is active)
 check_uplink_ip() {
-  UPLINK_IP=$(wget -qO- -T 10 http://api.ipify.org/ 2>/dev/null || wget -qO- -T 10 http://ifconfig.me/ip 2>/dev/null || echo "check-failed (no network connectivity)")
+  UPLINK_IP=$(wget -qO- -T 10 https://api.ipify.org/ 2>/dev/null || wget -qO- -T 10 https://ifconfig.me/ip 2>/dev/null || echo "check-failed (no network connectivity)")
   log "Uplink IP check: ${UPLINK_IP}"
   if [ "$TUNNEL_ENABLED" = "true" ]; then
     log "  ↳ If tunnel is working, this should be your VPS IP, NOT your local server IP."
@@ -71,7 +71,7 @@ if [ "$TUNNEL_ENABLED" = "true" ]; then
 
   # End-to-end connectivity check — can we actually reach the internet through the tunnel?
   log "Testing end-to-end internet connectivity through tunnel..."
-  TUNNEL_EXT_IP=$(wget -qO- -T 15 http://api.ipify.org/ 2>/dev/null || wget -qO- -T 15 http://ifconfig.me/ip 2>/dev/null || echo "")
+  TUNNEL_EXT_IP=$(wget -qO- -T 15 https://api.ipify.org/ 2>/dev/null || wget -qO- -T 15 https://ifconfig.me/ip 2>/dev/null || echo "")
   if [ -n "$TUNNEL_EXT_IP" ]; then
     log "SUCCESS: Internet is reachable through tunnel. External IP: ${TUNNEL_EXT_IP}"
     log "  ↳ This should be your VPS public IP, NOT your local server IP."
@@ -79,7 +79,7 @@ if [ "$TUNNEL_ENABLED" = "true" ]; then
     log "WARNING: Internet is NOT reachable through the tunnel."
     log "  Tor will likely fail to bootstrap. Troubleshooting:"
     log "  1. Verify the Newt container can reach the internet itself:"
-    log "       docker exec ${TUNNEL_CONTAINER} wget -qO- http://api.ipify.org/"
+    log "       docker exec ${TUNNEL_CONTAINER} wget -qO- https://api.ipify.org/"
     log "  2. Enable IP forwarding in the Newt container:"
     log "       docker exec ${TUNNEL_CONTAINER} sysctl -w net.ipv4.ip_forward=1"
     log "  3. Ensure the VPS has NAT/masquerade configured."
