@@ -3,8 +3,8 @@ set -e
 
 START_PORT="${TOR_START_PORT:-9052}"
 NUM_PORTS="${TOR_NUM_PORTS:-6}"
-TUNNEL_ENABLED="${NEWT_TUNNEL_ENABLED:-false}"
-TUNNEL_CONTAINER="${NEWT_TUNNEL_CONTAINER:-}"
+TUNNEL_ENABLED="${TUNNEL_ENABLED:-false}"
+TUNNEL_GATEWAY="${TUNNEL_GATEWAY:-}"
 TUNNEL_IP=""
 
 log() { echo "[tor-proxy] $(date '+%H:%M:%S') $1"; }
@@ -24,39 +24,40 @@ log "============================================"
 log "SOCKS ports     : ${NUM_PORTS} (${START_PORT}–$((START_PORT + NUM_PORTS - 1)))"
 log "Tunnel enabled  : ${TUNNEL_ENABLED}"
 if [ "$TUNNEL_ENABLED" = "true" ]; then
-  log "Tunnel container: ${TUNNEL_CONTAINER}"
+  log "Tunnel gateway  : ${TUNNEL_GATEWAY}"
+  log "Tunnel type     : WireGuard VPS tunnel"
 else
   log "Routing          : DIRECT (no tunnel — Tor uses local internet)"
 fi
 log "============================================"
 
-# --- Newt Tunnel routing (optional) ---
+# --- WireGuard tunnel routing (optional) ---
 if [ "$TUNNEL_ENABLED" = "true" ]; then
-  if [ -z "$TUNNEL_CONTAINER" ]; then
-    log "ERROR: NEWT_TUNNEL_ENABLED=true but NEWT_TUNNEL_CONTAINER is not set. Aborting."
+  if [ -z "$TUNNEL_GATEWAY" ]; then
+    log "ERROR: TUNNEL_ENABLED=true but TUNNEL_GATEWAY is not set. Aborting."
     exit 1
   fi
 
-  log "Resolving Newt container '${TUNNEL_CONTAINER}' to an IP via Docker DNS..."
+  log "Resolving tunnel gateway '${TUNNEL_GATEWAY}' to an IP via Docker DNS..."
   # Docker embedded DNS (127.0.0.11) resolves container names on shared networks.
   # Use ping to extract the resolved IP — works with busybox on Alpine.
-  TUNNEL_IP=$(ping -c1 -W5 "$TUNNEL_CONTAINER" 2>/dev/null | head -1 | sed -n 's/.*(\([0-9.]*\)).*/\1/p')
+  TUNNEL_IP=$(ping -c1 -W5 "$TUNNEL_GATEWAY" 2>/dev/null | head -1 | sed -n 's/.*(\([0-9.]*\)).*/\1/p')
 
   if [ -z "$TUNNEL_IP" ]; then
-    log "ERROR: Could not resolve '${TUNNEL_CONTAINER}' to an IP."
-    log "       Make sure the Newt container is running and shares a Docker network"
-    log "       with this tor container (see docker-compose.tunnel.yml)."
+    log "ERROR: Could not resolve '${TUNNEL_GATEWAY}' to an IP."
+    log "       Make sure the WireGuard tunnel container is running and shares"
+    log "       a Docker network with this tor container."
     exit 1
   fi
 
-  log "Resolved '${TUNNEL_CONTAINER}' → ${TUNNEL_IP}"
-  log "Configuring outbound route through Newt tunnel gateway ${TUNNEL_IP}..."
+  log "Resolved '${TUNNEL_GATEWAY}' → ${TUNNEL_IP}"
+  log "Configuring outbound route through WireGuard tunnel gateway ${TUNNEL_IP}..."
 
-  # Replace default route so all Tor traffic exits via the Newt tunnel container
+  # Replace default route so all Tor traffic exits via the WireGuard tunnel container
   if ip route replace default via "$TUNNEL_IP" 2>/dev/null; then
     log "SUCCESS: Default route set to ${TUNNEL_IP}"
     log "  All Tor traffic will exit via the VPS tunnel."
-    log "  Route: tor container → Newt (${TUNNEL_CONTAINER}/${TUNNEL_IP}) → VPS (Pangolin) → Internet"
+    log "  Route: tor container → wg-tunnel (${TUNNEL_GATEWAY}/${TUNNEL_IP}) → WireGuard → VPS → Internet"
   else
     log "WARNING: Could not set default route. Ensure NET_ADMIN capability is granted."
     log "  If using docker-compose.tunnel.yml this is included automatically."
@@ -64,9 +65,9 @@ if [ "$TUNNEL_ENABLED" = "true" ]; then
 
   # Quick connectivity check — gateway reachable?
   if ping -c1 -W3 "$TUNNEL_IP" >/dev/null 2>&1; then
-    log "SUCCESS: Tunnel gateway ${TUNNEL_IP} (${TUNNEL_CONTAINER}) is reachable."
+    log "SUCCESS: Tunnel gateway ${TUNNEL_IP} (${TUNNEL_GATEWAY}) is reachable."
   else
-    log "WARNING: Tunnel gateway ${TUNNEL_IP} (${TUNNEL_CONTAINER}) is NOT reachable. Traffic may fail."
+    log "WARNING: Tunnel gateway ${TUNNEL_IP} (${TUNNEL_GATEWAY}) is NOT reachable. Traffic may fail."
   fi
 
   # End-to-end connectivity check — can we actually reach the internet through the tunnel?
@@ -78,24 +79,23 @@ if [ "$TUNNEL_ENABLED" = "true" ]; then
   else
     log "WARNING: Internet is NOT reachable through the tunnel."
     log "  Tor will likely fail to bootstrap. Troubleshooting:"
-    log "  1. Verify the Newt container can reach the internet itself:"
-    log "       docker exec ${TUNNEL_CONTAINER} wget -qO- https://api.ipify.org/"
-    log "  2. Enable IP forwarding in the Newt container:"
-    log "       docker exec ${TUNNEL_CONTAINER} sysctl -w net.ipv4.ip_forward=1"
-    log "  3. Ensure the VPS has NAT/masquerade configured."
-    log "  4. See README.md § 'Newt Tunnel (optional)' for full setup."
+    log "  1. Check the wg-tunnel container logs: docker logs wg-tunnel"
+    log "  2. Verify the VPS WireGuard server is running: docker logs yt-wg-server"
+    log "  3. Check that the WireGuard keys in .env match the VPS setup output."
+    log "  4. Ensure UDP port 51820 is open on the VPS firewall."
+    log "  5. See README.md for full setup instructions."
   fi
 
   log "============================================"
   log " Tunnel Configuration Summary"
   log "============================================"
-  log "  Tunnel enabled  : YES"
-  log "  Gateway container: ${TUNNEL_CONTAINER}"
+  log "  Tunnel enabled   : YES (WireGuard)"
+  log "  Gateway container: ${TUNNEL_GATEWAY}"
   log "  Gateway IP       : ${TUNNEL_IP}"
   if [ -n "$TUNNEL_EXT_IP" ]; then
     log "  External IP      : ${TUNNEL_EXT_IP} (should be VPS IP)"
   fi
-  log "  Route            : tor → ${TUNNEL_CONTAINER} → VPS → Internet"
+  log "  Route            : tor → wg-tunnel → WireGuard → VPS → Internet"
   log "============================================"
 fi
 
@@ -141,7 +141,7 @@ log "When the ytviewer container connects, you will see"
 log "  'New SOCKS connection' lines in this log."
 log "If you do NOT see them, the viewer is not routing through Tor."
 if [ "$TUNNEL_ENABLED" = "true" ]; then
-  log "Tunnel mode is ACTIVE — Tor traffic routes through ${TUNNEL_CONTAINER} (${TUNNEL_IP}) to VPS."
+  log "Tunnel mode is ACTIVE — Tor traffic routes through ${TUNNEL_GATEWAY} (${TUNNEL_IP}) → VPS."
 else
   log "Tunnel mode is OFF — Tor uses the local server's internet directly."
 fi
@@ -157,9 +157,9 @@ log "============================================"
     log "──────────── Periodic Status ────────────"
     log "  SOCKS ports    : ${START_PORT}–$((START_PORT + NUM_PORTS - 1)) (${NUM_PORTS} ports)"
     if [ "$TUNNEL_ENABLED" = "true" ]; then
-      log "  Tunnel         : ACTIVE"
-      log "  Tunnel gateway : ${TUNNEL_CONTAINER} / ${TUNNEL_IP}"
-      log "  Route          : tor → ${TUNNEL_CONTAINER} → VPS → Internet"
+      log "  Tunnel         : ACTIVE (WireGuard)"
+      log "  Tunnel gateway : ${TUNNEL_GATEWAY} / ${TUNNEL_IP}"
+      log "  Route          : tor → wg-tunnel → WireGuard → VPS → Internet"
       # Verify tunnel gateway is still reachable
       if ping -c1 -W3 "$TUNNEL_IP" >/dev/null 2>&1; then
         log "  Tunnel status  : REACHABLE (OK)"

@@ -6,7 +6,7 @@ log() {
 }
 
 log "============================================"
-log " 🚀 WireGuard VPS Server Starting..."
+log " WireGuard VPS Server Starting"
 log "============================================"
 
 # Auto-detect VPS public IP

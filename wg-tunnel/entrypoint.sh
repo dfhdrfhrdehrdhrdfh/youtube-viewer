@@ -27,11 +27,20 @@ fi
 VPS_WG_PORT=${VPS_WG_PORT:-51820}
 
 log "============================================"
-log " 🚀 WireGuard Tunnel Client Starting..."
+log " WireGuard Tunnel Client Starting"
 log "============================================"
 log "VPS Endpoint: ${VPS_IP}:${VPS_WG_PORT}"
 
-# Enable IP forwarding
+# Detect default network interface BEFORE wg-quick changes routing
+DEFAULT_IFACE=$(ip route show default | awk '{print $5}' | head -n1)
+if [ -z "${DEFAULT_IFACE}" ]; then
+    DEFAULT_IFACE="eth0"
+    log "Could not detect default interface, falling back to ${DEFAULT_IFACE}"
+else
+    log "Detected default interface: ${DEFAULT_IFACE}"
+fi
+
+# Enable IP forwarding so the tor container can route through us
 sysctl -w net.ipv4.ip_forward=1
 log "IP forwarding enabled."
 
@@ -58,16 +67,8 @@ log "Starting WireGuard interface..."
 wg-quick up /config/wg0.conf
 log "WireGuard interface is up."
 
-# Auto-detect default network interface
-DEFAULT_IFACE=$(ip route show default | awk '{print $5}' | head -n1)
-if [ -z "${DEFAULT_IFACE}" ]; then
-    DEFAULT_IFACE="eth0"
-    log "Could not detect default interface, falling back to ${DEFAULT_IFACE}"
-else
-    log "Detected default interface: ${DEFAULT_IFACE}"
-fi
-
 # Set up iptables for NAT and forwarding
+# Traffic from the tor container arrives on DEFAULT_IFACE and exits through wg0
 log "Configuring iptables rules..."
 iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
 iptables -A FORWARD -i "${DEFAULT_IFACE}" -o wg0 -j ACCEPT
@@ -79,13 +80,21 @@ log "Verifying tunnel connectivity..."
 if ping -c 3 -W 5 10.13.13.1 > /dev/null 2>&1; then
     log "✅ Tunnel to VPS server (10.13.13.1) is reachable."
 else
-    log "⚠️  Warning: Could not ping VPS server (10.13.13.1). Tunnel may not be fully established yet."
+    log "⚠ Warning: Could not ping VPS server (10.13.13.1). Tunnel may not be fully established yet."
 fi
 
 # Check external IP through tunnel
 log "Checking external IP through tunnel..."
-EXTERNAL_IP=$(curl -s --max-time 10 --interface wg0 https://api.ipify.org || curl -s --max-time 10 --interface wg0 https://ifconfig.me || echo "UNKNOWN")
+EXTERNAL_IP=$(curl -s --max-time 10 https://api.ipify.org 2>/dev/null || curl -s --max-time 10 https://ifconfig.me 2>/dev/null || echo "check-failed")
 log "External IP through tunnel: ${EXTERNAL_IP}"
+if [ "${EXTERNAL_IP}" = "${VPS_IP}" ]; then
+    log "✅ Tunnel routing confirmed — external IP matches VPS IP."
+elif [ "${EXTERNAL_IP}" = "check-failed" ]; then
+    log "⚠ Could not verify external IP. Tunnel may still be working."
+else
+    log "⚠ External IP (${EXTERNAL_IP}) does not match VPS IP (${VPS_IP})."
+    log "  Tunnel may not be routing correctly."
+fi
 
 log ""
 log "============================================"
@@ -96,6 +105,6 @@ log " Tunnel IP:     10.13.13.2"
 log " External IP:   ${EXTERNAL_IP}"
 log "============================================"
 log ""
-log "Tunnel is running. Maintaining connection..."
+log "Tunnel is running. Waiting for connections from tor container..."
 
 exec sleep infinity
