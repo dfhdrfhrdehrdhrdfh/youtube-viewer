@@ -22,7 +22,7 @@ const startViewingHandler = async (options, index) => {
       const viewNum = index * options.batchCount + i + 1;
       if (status === 'fulfilled') {
         successes += 1;
-        logger.success(`View ${viewNum} - SUCCESS`);
+        logger.info(`View ${viewNum} - SUCCESS`);
       } else {
         failures += 1;
         logger.error(`View ${viewNum} - FAILED: ${reason?.message || reason}`);

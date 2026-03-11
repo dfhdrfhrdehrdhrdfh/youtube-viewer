@@ -44,8 +44,8 @@ const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
     if (browser) {
       try {
         await browser.close();
-      } catch {
-        // ignore close errors
+      } catch (closeError) {
+        logger.debug(`Browser close error: ${closeError.message || closeError}`);
       }
     }
   }
