@@ -13,13 +13,20 @@ services:
       - TOR_NUM_PORTS=${BATCH_COUNT:-6}
     networks:
       - ytnet
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9052"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   ytviewer:
     image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer:${IMAGE_TAG:-latest}
     container_name: youtube-viewer
     restart: unless-stopped
     depends_on:
-      - tor
+      tor:
+        condition: service_healthy
     environment:
       - NODE_ENV=production
       - YOUTUBE_URLS=${YOUTUBE_URLS}
