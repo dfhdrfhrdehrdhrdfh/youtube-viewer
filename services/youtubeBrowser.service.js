@@ -4,7 +4,11 @@ const _take = require('lodash/take');
 const puppeteer = require('../core/puppeteer');
 const { watchVideosInSequence } = require('../helpers');
 const { logger } = require('../utils');
-const { VIEW_ACTION_COUNT, IP_GETTER_URL, PAGE_DEFAULT_TIMEOUT, TOR_ENABLED, TOR_HOST, NEWT_TUNNEL_ENABLED, NEWT_TUNNEL_CONTAINER } = require('../utils/constants');
+const {
+  VIEW_ACTION_COUNT, IP_GETTER_URL, PAGE_DEFAULT_TIMEOUT, TOR_ENABLED, TOR_HOST,
+  NEWT_TUNNEL_ENABLED, NEWT_TUNNEL_CONTAINER,
+} = require('../utils/constants');
+const { getContainerDirectIp } = require('./tor.service');
 
 const getCurrentIP = async (page) => {
   await page.goto(IP_GETTER_URL, { waitUntil: 'load' });
@@ -36,15 +40,29 @@ const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
       deviceScaleFactor: 1,
     });
     const ipAddr = await getCurrentIP(page);
+    const directIp = getContainerDirectIp();
+    // Only use directIp for comparison when the uplink check actually returned a real IP.
+    const directIpKnown = directIp && !directIp.startsWith('check-failed');
 
     if (TOR_ENABLED) {
-      logger.success(`[port ${port}] Tor proxy ${proxyUrl} → exit IP: ${ipAddr}`);
       if (NEWT_TUNNEL_ENABLED) {
-        logger.info(`[port ${port}] Tunnel ACTIVE — traffic routes via ${NEWT_TUNNEL_CONTAINER || 'Newt'} → VPS → Internet`);
-        logger.info(`[port ${port}] Exit IP ${ipAddr} should match your VPS public IP (not local server IP).`);
+        logger.success(`[port ${port}] Tor exit IP (via ${NEWT_TUNNEL_CONTAINER || 'Newt'} → VPS tunnel): ${ipAddr}`);
+        if (directIpKnown && ipAddr !== directIp) {
+          logger.success(`[port ${port}] ✓ Routing OK — exit IP ${ipAddr} differs from container uplink IP ${directIp}`);
+        } else if (directIpKnown && ipAddr === directIp) {
+          logger.warn(`[port ${port}] ⚠ Routing SUSPECT — exit IP ${ipAddr} matches container direct IP (Tor may not be routing through tunnel)`);
+        } else {
+          logger.info(`[port ${port}] Tunnel ACTIVE — exit IP should differ from your local server IP.`);
+        }
       } else {
-        logger.info(`[port ${port}] Tunnel DISABLED — traffic routes via Tor directly to Internet.`);
-        logger.info(`[port ${port}] If exit IP ${ipAddr} differs from your server's public IP, Tor is working correctly.`);
+        logger.success(`[port ${port}] Tor exit IP: ${ipAddr}`);
+        if (directIpKnown && ipAddr !== directIp) {
+          logger.success(`[port ${port}] ✓ Tor routing OK — exit IP ${ipAddr} differs from container uplink IP ${directIp}`);
+        } else if (directIpKnown && ipAddr === directIp) {
+          logger.warn(`[port ${port}] ⚠ Tor routing SUSPECT — exit IP ${ipAddr} matches container direct IP (Tor may not be routing)`);
+        } else {
+          logger.info(`[port ${port}] If exit IP ${ipAddr} differs from your server's public IP, Tor is working correctly.`);
+        }
       }
       logger.info(`[port ${port}] The Tor container logs should now show a "New SOCKS connection" for this request.`);
     } else {

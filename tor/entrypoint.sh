@@ -9,6 +9,15 @@ TUNNEL_IP=""
 
 log() { echo "[tor-proxy] $(date '+%H:%M:%S') $1"; }
 
+# Fetch and log the container's public uplink IP (should be VPS IP when tunnel is active)
+check_uplink_ip() {
+  UPLINK_IP=$(wget -qO- https://api.ipify.org/ 2>/dev/null || curl -s https://api.ipify.org/ 2>/dev/null || echo "check-failed (wget/curl unavailable or no network)")
+  log "Uplink IP check: ${UPLINK_IP}"
+  if [ "$TUNNEL_ENABLED" = "true" ]; then
+    log "  ↳ If tunnel is working, this should be your VPS IP, NOT your local server IP."
+  fi
+}
+
 log "============================================"
 log " Tor Proxy Container Starting"
 log "============================================"
@@ -69,6 +78,14 @@ if [ "$TUNNEL_ENABLED" = "true" ]; then
   log "  Route            : tor → ${TUNNEL_CONTAINER} → VPS → Internet"
   log "============================================"
 fi
+
+# --- Startup uplink IP check ---
+# Reports the public IP this container sees — should be VPS IP when tunnel is active.
+log "============================================"
+log " Startup Uplink IP Check"
+log "============================================"
+check_uplink_ip
+log "============================================"
 
 # Ensure directories exist with correct permissions
 mkdir -p /etc/tor /var/lib/tor
@@ -133,8 +150,10 @@ log "============================================"
     # Show current default route
     CURRENT_ROUTE=$(ip route show default 2>/dev/null || echo "unknown")
     log "  Default route  : ${CURRENT_ROUTE}"
+    # Show current uplink IP (VPS IP when tunnel active, local IP when direct)
+    check_uplink_ip
     log "────────────────────────────────────────"
-    sleep 300
+    sleep 60
   done
 ) &
 

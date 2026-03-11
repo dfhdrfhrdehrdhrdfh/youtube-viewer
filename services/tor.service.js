@@ -1,11 +1,46 @@
 const net = require('net');
+const https = require('https');
+const { URL } = require('url');
 const { execWithPromise } = require('../utils/childProcessWrapper');
 
 const { logger } = require('../utils');
-const { IS_PROD, TOR_ENABLED, TOR_HOST, NEWT_TUNNEL_ENABLED, NEWT_TUNNEL_CONTAINER } = require('../utils/constants');
+const {
+  IS_PROD, TOR_ENABLED, TOR_HOST, NEWT_TUNNEL_ENABLED, NEWT_TUNNEL_CONTAINER, IP_GETTER_URL,
+} = require('../utils/constants');
 
 // When TOR_HOST is not localhost, Tor is running in a separate container
 const isExternalTor = TOR_HOST !== '127.0.0.1';
+
+// The ytviewer container's own public IP (direct, no proxy). Fetched once at startup.
+let _containerDirectIp = null;
+
+// Timeout for the direct uplink IP check (ms). Kept short so startup is not blocked long.
+const UPLINK_IP_CHECK_TIMEOUT_MS = 8000;
+
+// Fetch the public IP of this container via a direct HTTPS request (no SOCKS proxy).
+// When tunnel is active this is the local server's IP; Tor exit IPs will differ.
+const getDirectUplinkIp = () => new Promise((resolve) => {
+  const urlObj = new URL(IP_GETTER_URL);
+  const req = https.get({ hostname: urlObj.hostname, path: urlObj.pathname || '/', timeout: UPLINK_IP_CHECK_TIMEOUT_MS }, (res) => {
+    let data = '';
+    res.on('data', (chunk) => {
+      data += chunk;
+    });
+    res.on('end', () => resolve(data.trim() || 'check-failed (empty response)'));
+  });
+  req.on('error', (err) => {
+    logger.debug(`Uplink IP check failed: ${err.message}`);
+    resolve('check-failed (network error)');
+  });
+  req.on('timeout', () => {
+    req.destroy();
+    logger.debug(`Uplink IP check timed out after ${UPLINK_IP_CHECK_TIMEOUT_MS}ms`);
+    resolve('check-failed (timeout)');
+  });
+});
+
+// Returns the container's direct uplink IP stored during verifyTorConnectivity.
+const getContainerDirectIp = () => _containerDirectIp;
 
 /**
  * Test whether a single SOCKS port on the Tor container is reachable.
@@ -58,13 +93,27 @@ const verifyTorConnectivity = async (startPort, count) => {
   if (allOk) {
     logger.success(`All ${count} Tor SOCKS ports are reachable on ${TOR_HOST}.`);
     logger.info('Chromium browsers will be configured with --proxy-server=socks5://' + `${TOR_HOST}:<port>`);
-    logger.info('After launch, each browser will fetch its IP — if the IP differs from your server IP, Tor is working.');
     if (NEWT_TUNNEL_ENABLED) {
       logger.info(`Tunnel routing: ytviewer → tor (${TOR_HOST}) → ${NEWT_TUNNEL_CONTAINER || 'Newt'} → VPS → Internet`);
-      logger.info('The Tor exit IP should match or relate to your VPS public IP, NOT your local server IP.');
+    } else {
+      logger.info('Tunnel routing: ytviewer → tor → Internet (direct)');
     }
   } else {
     logger.warn('Some Tor SOCKS ports are unreachable. Affected batches will fail.');
+  }
+
+  // ── Container uplink IP check (direct, no proxy) ──────────────────────
+  logger.info('─────────────────────────────────────────');
+  logger.info('  Container Uplink IP Check (no proxy)');
+  logger.info('─────────────────────────────────────────');
+  const uplinkIp = await getDirectUplinkIp();
+  _containerDirectIp = uplinkIp;
+  logger.info(`  Container direct IP : ${uplinkIp}`);
+  if (NEWT_TUNNEL_ENABLED) {
+    logger.info(`  ↳ Tunnel ACTIVE — each browser's Tor exit IP should differ from ${uplinkIp}`);
+    logger.info(`    (the Tor container exits via the VPS, but the Tor exit node will be a random relay)`);
+  } else {
+    logger.info(`  ↳ Each browser's Tor exit IP should differ from ${uplinkIp} — if they match, Tor is not routing`);
   }
   logger.info('─────────────────────────────────────────');
   return allOk;
@@ -126,4 +175,6 @@ const startTor = async () => {
   }
 };
 
-module.exports = { writeTorConfig, stopTor, startTor, verifyTorConnectivity };
+module.exports = {
+  writeTorConfig, stopTor, startTor, verifyTorConnectivity, getContainerDirectIp,
+};
