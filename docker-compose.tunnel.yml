@@ -1,13 +1,17 @@
 # =============================================================================
-# Newt Tunnel Overlay — route Tor traffic through a Newt tunnel container
+# YouTube Viewer — Docker Compose WITH Newt Tunnel
 # =============================================================================
-# Usage (CLI):
-#   docker-compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d
+# This is a COMPLETE standalone docker-compose file. It includes everything
+# from docker-compose.yml PLUS the Newt tunnel routing configuration.
 #
 # Usage (Arcane / Web UI):
-#   Merge this file into the main docker-compose.yml Compose field, then deploy.
-#   See README.md § "Newt Tunnel (optional)" for details.
-# =============================================================================
+#   1. Paste this entire file into the Compose field.
+#   2. Paste .env.example into the Environment field.
+#   3. Set NEWT_TUNNEL_ENABLED=true, NEWT_TUNNEL_NETWORK, and NEWT_TUNNEL_CONTAINER.
+#   4. Click Deploy. Docker pulls all images and creates networks/volumes automatically.
+#
+# Usage (Docker CLI):
+#   docker-compose -f docker-compose.tunnel.yml up -d
 #
 # Prerequisites:
 #   1. A running Newt tunnel container on the same Docker host, connected to
@@ -27,13 +31,59 @@ version: '3'
 
 services:
   tor:
+    image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer-tor:${TOR_IMAGE_TAG:-latest}
+    container_name: tor-proxy
+    restart: unless-stopped
     # NET_ADMIN is required to change the default route inside the container
     cap_add:
       - NET_ADMIN
+    environment:
+      - TOR_START_PORT=${TOR_START_PORT:-9052}
+      - TOR_NUM_PORTS=${BATCH_COUNT:-6}
+      - NEWT_TUNNEL_ENABLED=${NEWT_TUNNEL_ENABLED:-false}
+      - NEWT_TUNNEL_CONTAINER=${NEWT_TUNNEL_CONTAINER:-}
+    volumes:
+      - tor-data:/var/lib/tor
     networks:
+      - ytnet
       - newt_net
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost ${TOR_START_PORT:-9052}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  ytviewer:
+    image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer:${IMAGE_TAG:-latest}
+    container_name: youtube-viewer
+    restart: unless-stopped
+    depends_on:
+      tor:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - YOUTUBE_URLS=${YOUTUBE_URLS}
+      - TOR_ENABLED=${TOR_ENABLED:-true}
+      - TOR_HOST=tor
+      - TOR_START_PORT=${TOR_START_PORT:-9052}
+      - BATCH_COUNT=${BATCH_COUNT:-6}
+      - TOTAL_COUNT=${TOTAL_COUNT:-96}
+      - VIEW_ACTION_COUNT=${VIEW_ACTION_COUNT:-10}
+      - VIEW_DURATION=${VIEW_DURATION:-50}
+      - PAGE_DEFAULT_TIMEOUT=${PAGE_DEFAULT_TIMEOUT:-600}
+      - YOUTUBE_VIEWER_FORCE_DEBUG=${YOUTUBE_VIEWER_FORCE_DEBUG:-false}
+      - NEWT_TUNNEL_ENABLED=${NEWT_TUNNEL_ENABLED:-false}
+      - NEWT_TUNNEL_CONTAINER=${NEWT_TUNNEL_CONTAINER:-}
+    networks:
+      - ytnet
 
 networks:
+  ytnet:
+    driver: bridge
   newt_net:
     external: true
     name: ${NEWT_TUNNEL_NETWORK}
+
+volumes:
+  tor-data:
