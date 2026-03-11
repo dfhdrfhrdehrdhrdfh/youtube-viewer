@@ -371,3 +371,36 @@ docker volume rm yt-wg-data
 ```
 
 You will need to update the keys in your home server `.env` file.
+
+### Complete VPS Cleanup (remove everything)
+
+If the tunnel didn't work, you no longer need it, or you just want to start fresh — run this single command on your VPS to remove **everything** that was created by the setup command:
+
+```bash
+docker rm -f yt-wg-server 2>/dev/null; docker volume rm yt-wg-data 2>/dev/null; docker rmi ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer-vps:latest 2>/dev/null; echo "✅ Done — all youtube-viewer VPS resources have been removed."
+```
+
+> **Note:** The command uses `;` (not `&&`) intentionally — each removal runs regardless of whether the previous one existed. This is safe to run multiple times.
+
+This removes:
+- The `yt-wg-server` container (stops it if running)
+- The `yt-wg-data` volume (contains generated WireGuard keys)
+- The `youtube-viewer-vps` Docker image
+
+After running this, your VPS is back to its original state — nothing from this project remains. If you want to try again later, just re-run the one-command deploy from [Step 1](#step-1--deploy-vps-receiver-one-command).
+
+---
+
+## Why WireGuard?
+
+WireGuard was chosen for the VPS tunnel after evaluating several alternatives. The key requirements were: lightweight, encrypted, Docker-friendly, single-peer point-to-point, and deployable with zero manual configuration.
+
+| Protocol | Encrypted | Lightweight | Docker-friendly | Auto-config | Verdict |
+|---|---|---|---|---|---|
+| **WireGuard** | ✅ Yes | ✅ ~4K lines of code, kernel-level | ✅ Excellent | ✅ Easy | **✅ Best fit** |
+| GRE / IPIP | ❌ No | ✅ Very light | ⚠ Needs `--privileged` | ⚠ Manual | ❌ No encryption |
+| VXLAN | ❌ No | ⚠ Medium | ✅ Good for clusters | ❌ Complex | ❌ Overkill for 1 peer |
+| SSH tunnel | ✅ Yes | ❌ High CPU (userspace) | ⚠ Awkward for full routing | ✅ Easy | ❌ Too slow |
+| OpenVPN | ✅ Yes | ❌ 70K+ lines, userspace | ⚠ Complex setup | ❌ Many config files | ❌ Heavy |
+
+**WireGuard wins** because it's the only option that is simultaneously encrypted, kernel-integrated (fast), tiny, Docker-native, and simple enough to auto-configure with key generation in a single container startup. GRE/IPIP are lighter but unencrypted. SSH tunnels are easy but too slow for routing all traffic. OpenVPN works but is far heavier and harder to automate.
