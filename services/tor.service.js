@@ -2,7 +2,7 @@ const net = require('net');
 const { execWithPromise } = require('../utils/childProcessWrapper');
 
 const { logger } = require('../utils');
-const { IS_PROD, TOR_ENABLED, TOR_HOST } = require('../utils/constants');
+const { IS_PROD, TOR_ENABLED, TOR_HOST, NEWT_TUNNEL_ENABLED, NEWT_TUNNEL_CONTAINER } = require('../utils/constants');
 
 // When TOR_HOST is not localhost, Tor is running in a separate container
 const isExternalTor = TOR_HOST !== '127.0.0.1';
@@ -39,6 +39,7 @@ const verifyTorConnectivity = async (startPort, count) => {
   logger.info('  Tor Connectivity Check');
   logger.info('─────────────────────────────────────────');
   logger.info(`Tor host: ${TOR_HOST} | Ports: ${startPort}–${startPort + count - 1}`);
+  logger.info(`Newt tunnel: ${NEWT_TUNNEL_ENABLED ? `ENABLED (container: ${NEWT_TUNNEL_CONTAINER || 'unknown'})` : 'DISABLED (direct internet)'}`);
 
   const results = await Promise.all(
     Array.from({ length: count }, (_, i) => probeSocksPort(TOR_HOST, startPort + i)),
@@ -58,6 +59,10 @@ const verifyTorConnectivity = async (startPort, count) => {
     logger.success(`All ${count} Tor SOCKS ports are reachable on ${TOR_HOST}.`);
     logger.info('Chromium browsers will be configured with --proxy-server=socks5://' + `${TOR_HOST}:<port>`);
     logger.info('After launch, each browser will fetch its IP — if the IP differs from your server IP, Tor is working.');
+    if (NEWT_TUNNEL_ENABLED) {
+      logger.info(`Tunnel routing: ytviewer → tor (${TOR_HOST}) → ${NEWT_TUNNEL_CONTAINER || 'Newt'} → VPS → Internet`);
+      logger.info('The Tor exit IP should match or relate to your VPS public IP, NOT your local server IP.');
+    }
   } else {
     logger.warn('Some Tor SOCKS ports are unreachable. Affected batches will fail.');
   }
