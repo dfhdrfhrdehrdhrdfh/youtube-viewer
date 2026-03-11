@@ -107,4 +107,15 @@ log "============================================"
 log ""
 log "Tunnel is running. Waiting for connections from tor container..."
 
-exec sleep infinity
+# Health monitoring loop — checks tunnel connectivity periodically
+while true; do
+    sleep 30
+    if ping -c1 -W3 10.13.13.1 >/dev/null 2>&1; then
+        log "Tunnel health: OK (VPS reachable)"
+    else
+        log "⚠ Tunnel health: VPS (10.13.13.1) unreachable — attempting reconnect..."
+        wg-quick down /config/wg0.conf 2>/dev/null || true
+        sleep 2
+        wg-quick up /config/wg0.conf 2>/dev/null || log "❌ Reconnect failed"
+    fi
+done

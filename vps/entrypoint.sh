@@ -103,4 +103,13 @@ echo ""
 
 log "Server is running. Waiting for connections..."
 
-exec sleep infinity
+# Health monitoring loop — logs WireGuard status periodically
+while true; do
+    sleep 60
+    PEER_STATUS=$(wg show wg0 latest-handshakes 2>/dev/null | awk '{print $2}')
+    if [ -n "$PEER_STATUS" ] && [ "$PEER_STATUS" != "0" ]; then
+        log "Client connected (last handshake: ${PEER_STATUS}s ago)"
+    else
+        log "No active client connections"
+    fi
+done
