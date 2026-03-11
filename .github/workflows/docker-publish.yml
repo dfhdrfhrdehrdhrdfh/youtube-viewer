@@ -42,3 +42,20 @@ jobs:
           push: true
           tags: ${{ steps.meta-viewer.outputs.tags }}
           labels: ${{ steps.meta-viewer.outputs.labels }}
+
+      - name: Extract metadata for tor image
+        id: meta-tor
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/youtube-viewer-tor
+          tags: |
+            type=sha
+            type=raw,value=latest
+
+      - name: Build and push tor image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./tor
+          push: true
+          tags: ${{ steps.meta-tor.outputs.tags }}
+          labels: ${{ steps.meta-tor.outputs.labels }}

@@ -16,6 +16,19 @@ Based on [soumyadityac/youtube-viewer](https://github.com/soumyadityac/youtube-v
 
 ## Quick Start
 
+### Deploy with Arcane (recommended)
+
+If you use [Arcane](https://github.com/Xerobase/Arcane) or another Docker Compose web UI:
+
+1. Create a new stack in Arcane.
+2. Paste the contents of [`docker-compose.yml`](docker-compose.yml) into the **Compose** field.
+3. Paste the contents of [`.env.example`](`.env.example`) into the **Environment** field and set your `YOUTUBE_URLS`.
+4. Click **Deploy**.
+
+Arcane (and Docker) will pull both images from GHCR and create the network and volume automatically — no cloning, no building, no extra commands.
+
+### Deploy with Docker CLI
+
 ### Prerequisites
 
 - [Docker Engine](https://docs.docker.com/engine/install/)
@@ -43,10 +56,10 @@ nano .env
 YOUTUBE_URLS=https://www.youtube.com/watch?v=YOUR_VIDEO_ID
 ```
 
-4. Build and start the containers:
+4. Start the containers (images are pulled automatically from GHCR):
 
 ```bash
-docker-compose up -d --build
+docker-compose up -d
 ```
 
 5. Check the logs:
@@ -75,6 +88,8 @@ All settings are in the `.env` file:
 | `VIEW_ACTION_COUNT` | `10` | Videos watched per browser session |
 | `VIEW_DURATION` | `50` | Average view duration in seconds (±16.6%) |
 | `PAGE_DEFAULT_TIMEOUT` | `600` | Max page timeout in seconds |
+| `IMAGE_TAG` | `latest` | youtube-viewer image tag (pin to a SHA for reproducibility) |
+| `TOR_IMAGE_TAG` | `latest` | tor image tag (pin to a SHA for reproducibility) |
 | `YOUTUBE_VIEWER_FORCE_DEBUG` | `false` | Enable debug logging |
 
 ### Multiple URLs
