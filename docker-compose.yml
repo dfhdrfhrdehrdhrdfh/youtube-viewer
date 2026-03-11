@@ -15,11 +15,11 @@ services:
     networks:
       - ytnet
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost ${TOR_START_PORT:-9052}"]
+      test: ["CMD-SHELL", "grep -q 'Bootstrapped 100%' /tmp/tor_bootstrap.log 2>/dev/null"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 8
+      start_period: 45s
 
   ytviewer:
     image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer:${IMAGE_TAG:-latest}
