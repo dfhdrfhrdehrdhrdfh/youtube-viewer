@@ -2,7 +2,7 @@ version: '3'
 
 services:
   tor:
-    build: ./tor
+    image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer-tor:${TOR_IMAGE_TAG:-latest}
     container_name: tor-proxy
     restart: unless-stopped
     environment:

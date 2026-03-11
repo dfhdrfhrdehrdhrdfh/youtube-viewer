@@ -43,10 +43,10 @@ nano .env
 YOUTUBE_URLS=https://www.youtube.com/watch?v=YOUR_VIDEO_ID
 ```
 
-4. Build and start the containers:
+4. Start the containers (images are pulled automatically from GHCR):
 
 ```bash
-docker-compose up -d --build
+docker-compose up -d
 ```
 
 5. Check the logs:
