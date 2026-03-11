@@ -8,13 +8,13 @@ Based on [soumyadityac/youtube-viewer](https://github.com/soumyadityac/youtube-v
 
 ## Features
 
-- **Single `docker-compose.yml`** deploys 2 containers: YouTube Viewer + Tor proxy
+- **Two compose files** — `docker-compose.yml` (standard) and `docker-compose.tunnel.yml` (with Newt tunnel) — both are complete standalone deploy options
 - **Single `.env` file** for all configuration — no need to edit code files
 - YouTube URLs configured via `.env` (no separate `urls.txt` needed)
 - Tor proxy runs in a separate container with automatic SOCKS port configuration
 - **Enhanced logging** — both containers clearly show whether they are connected and working together
 - **Optional Newt tunnel routing** — route Tor traffic through an existing Newt tunnel container to a VPS with Pangolin (disabled by default)
-- Fully automatic deployment — just `docker-compose up`
+- Fully automatic deployment — just paste a compose file and click Deploy
 
 ## Quick Start
 
@@ -40,12 +40,12 @@ Arcane (and Docker) will pull both images from GHCR and create the network and v
 
 ### Deploy with Docker CLI
 
-### Prerequisites
+#### Prerequisites
 
 - [Docker Engine](https://docs.docker.com/engine/install/)
 - [Docker Compose](https://docs.docker.com/compose/install/)
 
-### Deploy
+#### Option A — Standard (no tunnel)
 
 1. Clone this repository:
 
@@ -54,35 +54,63 @@ git clone https://github.com/dfhdrfhrdehrdhrdfh/youtube-viewer.git
 cd youtube-viewer
 ```
 
-2. Copy the example `.env` file and edit it with your settings:
+2. Copy the example `.env` file and set your URLs:
 
 ```bash
 cp .env.example .env
-nano .env
+nano .env  # set YOUTUBE_URLS
 ```
 
-3. Set your YouTube URL(s) in the `.env` file:
-
-```env
-YOUTUBE_URLS=https://www.youtube.com/watch?v=YOUR_VIDEO_ID
-```
-
-4. Start the containers (images are pulled automatically from GHCR):
+3. Start:
 
 ```bash
 docker-compose up -d
 ```
 
-5. Check the logs:
+4. Check the logs:
 
 ```bash
+docker-compose logs -f tor
 docker-compose logs -f ytviewer
 ```
 
-### Stop
+#### Option B — With Newt tunnel
+
+1. Clone this repository:
 
 ```bash
+git clone https://github.com/dfhdrfhrdehrdhrdfh/youtube-viewer.git
+cd youtube-viewer
+```
+
+2. Copy the example `.env` file and set your URLs and tunnel variables:
+
+```bash
+cp .env.example .env
+nano .env  # set YOUTUBE_URLS, NEWT_TUNNEL_NETWORK, NEWT_TUNNEL_CONTAINER
+```
+
+3. Start using the tunnel compose file:
+
+```bash
+docker-compose -f docker-compose.tunnel.yml up -d
+```
+
+4. Check the logs:
+
+```bash
+docker-compose -f docker-compose.tunnel.yml logs -f tor
+docker-compose -f docker-compose.tunnel.yml logs -f ytviewer
+```
+
+#### Stop
+
+```bash
+# Option A
 docker-compose down
+
+# Option B
+docker-compose -f docker-compose.tunnel.yml down
 ```
 
 ## Configuration
@@ -138,35 +166,41 @@ Both containers produce detailed logs so you can verify they are actually workin
 | `Tunnel enabled  : true/false` | Whether Newt tunnel routing is active |
 | `Tunnel container: <name>` | Which Newt container is being used as gateway (when enabled) |
 | `SUCCESS: Default route set to <IP>` | Tunnel routing configured successfully |
+| `Uplink IP check: <IP>` | Public IP the Tor container sees as its uplink — **should be VPS IP when tunnel is active**, local server IP otherwise |
 | `Bootstrapped 100% (done)` | Tor has connected to the Tor network |
 | `New SOCKS connection opened` | **The YT viewer is routing traffic through Tor** |
-| `Periodic Status` block | Repeating status with tunnel state, gateway reachability, and route info |
+| `Periodic Status` block | Repeating status (every 60s) with tunnel state, gateway reachability, uplink IP, and route |
 | Circuit / stream log lines | Tor is actively building circuits for the viewer |
 
-> **Key check:** If you see `New SOCKS connection` lines appearing every time the YT viewer starts a batch, Tor is genuinely handling the viewer's traffic. If you do **not** see them, the viewer is **not** connected to Tor. When tunnel mode is active, the periodic status logs confirm the tunnel gateway remains reachable.
+> **Key check:** If you see `New SOCKS connection` lines appearing every time the YT viewer starts a batch, Tor is genuinely handling the viewer's traffic. If you do **not** see them, the viewer is **not** connected to Tor. When tunnel mode is active, the `Uplink IP check` line should show your VPS IP — if it shows your local server IP, the tunnel routing is not working.
 
 ### YT viewer logs (`docker-compose logs -f ytviewer`)
 
 | What you should see | Meaning |
 |---|---|
-| `Tor enabled : true` | The viewer will use Tor |
-| `Newt tunnel : ENABLED / DISABLED` | Whether tunnel routing is configured |
+| `Tor enabled   : true` | The viewer will use Tor |
+| `Newt tunnel   : ENABLED / DISABLED` | Whether tunnel routing is configured |
 | `Traffic route : ytviewer → tor → ...` | The full traffic path being used |
 | `SOCKS port <port> → reachable (Xms)` | TCP connectivity to the Tor container confirmed |
 | `All N Tor SOCKS ports are reachable` | Every proxy port is working |
+| `Container direct IP : X.X.X.X` | The ytviewer container's own public IP (baseline for comparison) |
 | `Launching browser with proxy: socks5://tor:<port>` | Chromium is configured to use Tor |
-| `Tor proxy socks5://tor:<port> → exit IP: X.X.X.X` | **Traffic is exiting through Tor** — this IP should differ from your server's real IP |
-| `Tunnel ACTIVE — traffic routes via <container> → VPS` | Confirms tunnel is being used for this connection |
+| `Tor exit IP: X.X.X.X` | Exit IP when tunnel is DISABLED — should differ from your server IP |
+| `Tor exit IP (via <container> → VPS tunnel): X.X.X.X` | Exit IP when tunnel is ENABLED |
+| `✓ Routing OK — exit IP X differs from container uplink IP Y` | **Tor is routing correctly** |
+| `⚠ Routing SUSPECT — exit IP matches container direct IP` | Exit IP same as server IP — Tor may not be routing |
 
-> **Key check:** Compare the `exit IP` shown in the YT viewer logs with your server's real public IP (`curl ifconfig.me`). If they differ, Tor is working. When tunnel mode is active, the exit IP should match or relate to your VPS IP. The Tor logs should show a matching `New SOCKS connection` for each IP lookup.
+> **Key check:** Look for the `✓ Routing OK` line after each browser launch. It confirms the Tor exit IP differs from the ytviewer container's own direct IP, proving traffic is genuinely routed through Tor (and through the VPS when the tunnel is active). A `⚠ Routing SUSPECT` warning means the exit IP matches the server's direct IP — Tor is likely not routing.
 
 ### Troubleshooting
 
 | Symptom | Likely cause |
 |---|---|
 | YT viewer shows `SOCKS port → UNREACHABLE` | Tor container not healthy yet or network issue |
-| Exit IP matches your server IP | Tor proxy not being used — check `TOR_ENABLED=true` |
+| `⚠ Routing SUSPECT` in YT viewer logs | Exit IP matches server IP — Tor proxy not routing; check `TOR_ENABLED=true` and that Tor bootstrapped |
 | No `New SOCKS connection` in Tor logs | The viewer is not routing through Tor |
+| `Uplink IP check` shows local server IP (not VPS) | Tunnel routing not active — check `NEWT_TUNNEL_ENABLED=true` and that you used `docker-compose.tunnel.yml` |
+| `WARNING: Could not set default route` in Tor logs | Missing `NET_ADMIN` capability — make sure you deployed with `docker-compose.tunnel.yml` |
 | Tor shows `Bootstrapped` stuck below 100% | Tor cannot reach the Tor network (firewall / DNS) |
 
 ## Newt Tunnel (optional)
@@ -263,7 +297,7 @@ On your VPS (the one running Pangolin), make sure:
 3. **Verify in the logs:**
 
    ```bash
-   docker-compose logs -f tor
+   docker-compose -f docker-compose.tunnel.yml logs -f tor
    ```
 
    You should see:
@@ -275,7 +309,14 @@ On your VPS (the one running Pangolin), make sure:
    [tor-proxy] SUCCESS: Default route set to 172.20.0.2
    [tor-proxy]   All Tor traffic will exit via the VPS tunnel.
    [tor-proxy] SUCCESS: Tunnel gateway 172.20.0.2 (newt) is reachable.
+   [tor-proxy] ============================================
+   [tor-proxy]  Startup Uplink IP Check
+   [tor-proxy] ============================================
+   [tor-proxy] Uplink IP check: 203.0.113.42
+   [tor-proxy]   ↳ If tunnel is working, this should be your VPS IP, NOT your local server IP.
    ```
+
+   The uplink IP (`203.0.113.42` in the example) should be your **VPS IP**, not your local server's IP. This confirms the Tor container is routing its outbound traffic through the tunnel.
 
    The periodic status logs (every 60 seconds) will also confirm the tunnel state:
    ```
@@ -284,6 +325,14 @@ On your VPS (the one running Pangolin), make sure:
    [tor-proxy]   Tunnel gateway : newt / 172.20.0.2
    [tor-proxy]   Route          : tor → newt → VPS → Internet
    [tor-proxy]   Tunnel status  : REACHABLE (OK)
+   [tor-proxy] Uplink IP check: 203.0.113.42
+   [tor-proxy]   ↳ If tunnel is working, this should be your VPS IP, NOT your local server IP.
+   ```
+
+   In the YT viewer logs you should see routing confirmed per batch:
+   ```
+   [tor-proxy] Tor exit IP (via newt → VPS tunnel): 198.51.100.7
+   [tor-proxy] ✓ Routing OK — exit IP 198.51.100.7 differs from container uplink IP 1.2.3.4
    ```
 
    If you see `WARNING: Could not set default route`, make sure you are using `docker-compose.tunnel.yml` (it includes the required `NET_ADMIN` capability automatically).

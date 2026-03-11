@@ -7,7 +7,8 @@
 # Usage (Arcane / Web UI):
 #   1. Paste this entire file into the Compose field.
 #   2. Paste .env.example into the Environment field.
-#   3. Set NEWT_TUNNEL_ENABLED=true, NEWT_TUNNEL_NETWORK, and NEWT_TUNNEL_CONTAINER.
+#   3. Set NEWT_TUNNEL_NETWORK and NEWT_TUNNEL_CONTAINER (NEWT_TUNNEL_ENABLED is already
+#      true by default in this file — no need to set it unless overriding to false).
 #   4. Click Deploy. Docker pulls all images and creates networks/volumes automatically.
 #
 # Usage (Docker CLI):
@@ -85,7 +86,7 @@ networks:
     driver: bridge
   newt_net:
     external: true
-    name: ${NEWT_TUNNEL_NETWORK:?NEWT_TUNNEL_NETWORK must be set to the Docker network name shared with your Newt container (see .env.example)}
+    name: ${NEWT_TUNNEL_NETWORK:?NEWT_TUNNEL_NETWORK must be set to the Docker network name shared with your Newt container (see .env or .env.example)}
 
 volumes:
   tor-data:
