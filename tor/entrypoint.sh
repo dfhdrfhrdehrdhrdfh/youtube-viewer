@@ -6,11 +6,16 @@ NUM_PORTS="${TOR_NUM_PORTS:-6}"
 
 echo "Generating Tor config with ${NUM_PORTS} SOCKS ports starting at ${START_PORT}..."
 
-# Ensure the /etc/tor directory exists
+# Ensure directories exist with correct permissions
 mkdir -p /etc/tor
+mkdir -p /var/lib/tor
+chown -R tor:tor /var/lib/tor
+chmod 700 /var/lib/tor
 
 # Write torrc configuration
 cat > /etc/tor/torrc <<EOF
+User tor
+DataDirectory /var/lib/tor
 Log notice stdout
 EOF
 

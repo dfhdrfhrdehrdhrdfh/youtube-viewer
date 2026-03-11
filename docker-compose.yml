@@ -2,19 +2,16 @@ version: '3'
 
 services:
   tor:
-    image: peterdavehello/tor-socks-proxy:latest
+    build: ./tor
     container_name: tor-proxy
     restart: unless-stopped
-    entrypoint: ["/bin/sh", "/entrypoint.sh"]
-    volumes:
-      - ./tor/entrypoint.sh:/entrypoint.sh:ro
     environment:
       - TOR_START_PORT=${TOR_START_PORT:-9052}
       - TOR_NUM_PORTS=${BATCH_COUNT:-6}
     networks:
       - ytnet
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "9052"]
+      test: ["CMD-SHELL", "nc -z localhost ${TOR_START_PORT:-9052}"]
       interval: 10s
       timeout: 5s
       retries: 5
