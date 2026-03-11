@@ -95,7 +95,7 @@ All settings are in the `.env` file:
 | `YOUTUBE_VIEWER_FORCE_DEBUG` | `false` | Enable debug logging |
 | `NEWT_TUNNEL_ENABLED` | `false` | Route Tor traffic through a Newt tunnel container (see below) |
 | `NEWT_TUNNEL_NETWORK` | *(empty)* | Docker network name shared with the Newt container |
-| `NEWT_TUNNEL_GATEWAY` | *(empty)* | IP of the Newt container inside that network |
+| `NEWT_TUNNEL_CONTAINER` | *(empty)* | Name of the Newt container (IP auto-resolved at startup) |
 
 ### Multiple URLs
 
@@ -190,7 +190,7 @@ On your VPS (the one running Pangolin), make sure:
 2. **NAT / masquerade is configured** so forwarded traffic gets the VPS public IP:
 
    ```bash
-   # Replace eth0 with your VPS public interface (check with: ip route | grep default)
+   # Replace eth0 with your VPS public interface (check with: ip route show default)
    sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
    # Persist with iptables-persistent or your distro's method
    ```
@@ -219,20 +219,20 @@ On your VPS (the one running Pangolin), make sure:
    ```env
    NEWT_TUNNEL_ENABLED=true
    NEWT_TUNNEL_NETWORK=my_newt_network    # Docker network name of your Newt container
-   NEWT_TUNNEL_GATEWAY=172.20.0.2         # IP of the Newt container in that network
+   NEWT_TUNNEL_CONTAINER=newt             # Name of your Newt container
    ```
 
-   > **Find the Newt container's IP:**
+   > **Find the Newt container name:**
    > ```bash
-   > docker inspect <newt-container-name> | grep IPAddress
+   > docker ps --format '{{.Names}}'
    > ```
    >
    > **Find the Docker network name:**
    > ```bash
-   > docker inspect <newt-container-name> | grep NetworkMode
-   > # or
    > docker network ls
    > ```
+   >
+   > The Newt container's IP is **auto-resolved** at startup via Docker DNS — you don't need to look it up.
 
 2. **Deploy with the tunnel overlay:**
 
@@ -253,9 +253,10 @@ On your VPS (the one running Pangolin), make sure:
    You should see:
    ```
    [tor-proxy] Tunnel mode : true
-   [tor-proxy] Configuring outbound route through Newt tunnel gateway 172.20.0.2...
+   [tor-proxy] Resolving Newt container 'newt' to an IP via Docker DNS...
+   [tor-proxy] Resolved 'newt' → 172.20.0.2
    [tor-proxy] Default route set to 172.20.0.2 — all Tor traffic will exit via the VPS tunnel.
-   [tor-proxy] Tunnel gateway 172.20.0.2 is reachable.
+   [tor-proxy] Tunnel gateway 172.20.0.2 (newt) is reachable.
    ```
 
    If you see `WARNING: Could not set default route`, make sure `docker-compose.tunnel.yml` is included (it adds the required `NET_ADMIN` capability).

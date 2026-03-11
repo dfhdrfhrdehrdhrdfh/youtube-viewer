@@ -19,8 +19,8 @@ const handlePageCrash = (page) => (error) => {
 
 const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
   let browser;
-  const proxyUrl = `socks5://${TOR_HOST}:${port}`;
   try {
+    const proxyUrl = `socks5://${TOR_HOST}:${port}`;
     logger.info(`[port ${port}] Launching browser with proxy: ${TOR_ENABLED ? proxyUrl : 'DIRECT (Tor disabled)'}`);
     browser = await puppeteer.getBrowserInstance(port);
     const page = await browser.newPage();

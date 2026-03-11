@@ -20,7 +20,7 @@
 #
 # Required .env variables when NEWT_TUNNEL_ENABLED=true:
 #   NEWT_TUNNEL_NETWORK   — Docker network name shared with the Newt container
-#   NEWT_TUNNEL_GATEWAY   — IP of the Newt container inside that network
+#   NEWT_TUNNEL_CONTAINER — Name of the Newt container (IP is auto-resolved via Docker DNS)
 # =============================================================================
 
 version: '3'

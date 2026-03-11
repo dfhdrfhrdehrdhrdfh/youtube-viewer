@@ -9,7 +9,7 @@ services:
       - TOR_START_PORT=${TOR_START_PORT:-9052}
       - TOR_NUM_PORTS=${BATCH_COUNT:-6}
       - NEWT_TUNNEL_ENABLED=${NEWT_TUNNEL_ENABLED:-false}
-      - NEWT_TUNNEL_GATEWAY=${NEWT_TUNNEL_GATEWAY:-}
+      - NEWT_TUNNEL_CONTAINER=${NEWT_TUNNEL_CONTAINER:-}
     volumes:
       - tor-data:/var/lib/tor
     networks:
