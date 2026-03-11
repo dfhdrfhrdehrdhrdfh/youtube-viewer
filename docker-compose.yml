@@ -8,6 +8,8 @@ services:
     environment:
       - TOR_START_PORT=${TOR_START_PORT:-9052}
       - TOR_NUM_PORTS=${BATCH_COUNT:-6}
+    volumes:
+      - tor-data:/var/lib/tor
     networks:
       - ytnet
     healthcheck:
@@ -42,3 +44,6 @@ services:
 networks:
   ytnet:
     driver: bridge
+
+volumes:
+  tor-data:
