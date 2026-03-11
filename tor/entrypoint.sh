@@ -11,7 +11,7 @@ log() { echo "[tor-proxy] $(date '+%H:%M:%S') $1"; }
 
 # Fetch and log the container's public uplink IP (should be VPS IP when tunnel is active)
 check_uplink_ip() {
-  UPLINK_IP=$(wget -qO- https://api.ipify.org/ 2>/dev/null || curl -s https://api.ipify.org/ 2>/dev/null || echo "unavailable")
+  UPLINK_IP=$(wget -qO- https://api.ipify.org/ 2>/dev/null || curl -s https://api.ipify.org/ 2>/dev/null || echo "check-failed (wget/curl unavailable or no network)")
   log "Uplink IP check: ${UPLINK_IP}"
   if [ "$TUNNEL_ENABLED" = "true" ]; then
     log "  ↳ If tunnel is working, this should be your VPS IP, NOT your local server IP."

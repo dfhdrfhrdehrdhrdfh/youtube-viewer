@@ -22,9 +22,18 @@ Based on [soumyadityac/youtube-viewer](https://github.com/soumyadityac/youtube-v
 
 If you use [Arcane](https://github.com/Xerobase/Arcane) or another Docker Compose web UI:
 
+#### Option A — Standard (no tunnel)
+
 1. Create a new stack in Arcane.
 2. Paste the contents of [`docker-compose.yml`](docker-compose.yml) into the **Compose** field.
-3. Paste the contents of [`.env.example`](`.env.example`) into the **Environment** field and set your `YOUTUBE_URLS`.
+3. Paste the contents of [`.env.example`](.env.example) into the **Environment** field and set your `YOUTUBE_URLS`.
+4. Click **Deploy**.
+
+#### Option B — With Newt tunnel
+
+1. Create a new stack in Arcane.
+2. Paste the contents of [`docker-compose.tunnel.yml`](docker-compose.tunnel.yml) into the **Compose** field.
+3. Paste the contents of [`.env.example`](.env.example) into the **Environment** field and set your `YOUTUBE_URLS`, `NEWT_TUNNEL_NETWORK`, and `NEWT_TUNNEL_CONTAINER`.
 4. Click **Deploy**.
 
 Arcane (and Docker) will pull both images from GHCR and create the network and volume automatically — no cloning, no building, no extra commands.
@@ -268,7 +277,7 @@ On your VPS (the one running Pangolin), make sure:
    [tor-proxy] SUCCESS: Tunnel gateway 172.20.0.2 (newt) is reachable.
    ```
 
-   The periodic status logs (every 5 minutes) will also confirm the tunnel state:
+   The periodic status logs (every 60 seconds) will also confirm the tunnel state:
    ```
    [tor-proxy] ──────────── Periodic Status ────────────
    [tor-proxy]   Tunnel         : ACTIVE

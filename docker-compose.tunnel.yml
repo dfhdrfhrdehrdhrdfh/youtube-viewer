@@ -40,7 +40,8 @@ services:
     environment:
       - TOR_START_PORT=${TOR_START_PORT:-9052}
       - TOR_NUM_PORTS=${BATCH_COUNT:-6}
-      - NEWT_TUNNEL_ENABLED=${NEWT_TUNNEL_ENABLED:-false}
+      # Default true here — this file is the tunnel variant; override with NEWT_TUNNEL_ENABLED=false to disable
+      - NEWT_TUNNEL_ENABLED=${NEWT_TUNNEL_ENABLED:-true}
       - NEWT_TUNNEL_CONTAINER=${NEWT_TUNNEL_CONTAINER:-}
     volumes:
       - tor-data:/var/lib/tor
@@ -73,7 +74,8 @@ services:
       - VIEW_DURATION=${VIEW_DURATION:-50}
       - PAGE_DEFAULT_TIMEOUT=${PAGE_DEFAULT_TIMEOUT:-600}
       - YOUTUBE_VIEWER_FORCE_DEBUG=${YOUTUBE_VIEWER_FORCE_DEBUG:-false}
-      - NEWT_TUNNEL_ENABLED=${NEWT_TUNNEL_ENABLED:-false}
+      # Default true here — this file is the tunnel variant; override with NEWT_TUNNEL_ENABLED=false to disable
+      - NEWT_TUNNEL_ENABLED=${NEWT_TUNNEL_ENABLED:-true}
       - NEWT_TUNNEL_CONTAINER=${NEWT_TUNNEL_CONTAINER:-}
     networks:
       - ytnet
@@ -83,7 +85,7 @@ networks:
     driver: bridge
   newt_net:
     external: true
-    name: ${NEWT_TUNNEL_NETWORK}
+    name: ${NEWT_TUNNEL_NETWORK:?NEWT_TUNNEL_NETWORK must be set to the Docker network name shared with your Newt container (see .env.example)}
 
 volumes:
   tor-data:
