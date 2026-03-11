@@ -33,14 +33,21 @@ const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
       deviceScaleFactor: 1,
     });
     const ipAddr = await getCurrentIP(page);
+    logger.info(`Connected via IP: ${ipAddr} on port ${port}`);
     const targetUrlsForAction = _take(_shuffle(targetUrls), VIEW_ACTION_COUNT);
     await watchVideosInSequence(page, ipAddr, targetUrlsForAction, durationInSeconds);
     await page.close();
   } catch (error) {
-    logger.warn('Entire view action in a batch failed. Waiting for TOR to acquire a new set of IPs');
-    logger.debug(error);
+    logger.error(`Batch failed on port ${port}: ${error.message || error}`);
+    throw error;
   } finally {
-    await browser.close();
+    if (browser) {
+      try {
+        await browser.close();
+      } catch {
+        // ignore close errors
+      }
+    }
   }
 };
 

@@ -17,14 +17,18 @@ const startViewingHandler = async (options, index) => {
   }
   return Promise.allSettled(promiseArr).then((settedPromises) => {
     logger.info('Batch Summary -');
-    _each(settedPromises, ({ status }, i) => {
+    _each(settedPromises, ({ status, reason }, i) => {
       total += 1;
-      if (status === 'fulfilled') successes += 1;
-      else failures += 1;
-
-      logger.info(`View ${index * options.batchCount + i + 1} - ${status}`);
-      logger.info(`Fulfilled - ${successes}\t Failed - ${failures}\t Total - ${total}`);
+      const viewNum = index * options.batchCount + i + 1;
+      if (status === 'fulfilled') {
+        successes += 1;
+        logger.success(`View ${viewNum} - SUCCESS`);
+      } else {
+        failures += 1;
+        logger.error(`View ${viewNum} - FAILED: ${reason?.message || reason}`);
+      }
     });
+    logger.info(`Succeeded - ${successes}\t Failed - ${failures}\t Total - ${total}`);
   });
 };
 
