@@ -18,7 +18,7 @@ services:
       start_period: 30s
 
   ytviewer:
-    image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer:${IMAGE_TAG:-latest}
+    build: .
     container_name: youtube-viewer
     restart: unless-stopped
     depends_on:
