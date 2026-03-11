@@ -4,7 +4,7 @@ const _take = require('lodash/take');
 const puppeteer = require('../core/puppeteer');
 const { watchVideosInSequence } = require('../helpers');
 const { logger } = require('../utils');
-const { VIEW_ACTION_COUNT, IP_GETTER_URL, PAGE_DEFAULT_TIMEOUT } = require('../utils/constants');
+const { VIEW_ACTION_COUNT, IP_GETTER_URL, PAGE_DEFAULT_TIMEOUT, TOR_ENABLED, TOR_HOST } = require('../utils/constants');
 
 const getCurrentIP = async (page) => {
   await page.goto(IP_GETTER_URL, { waitUntil: 'load' });
@@ -19,7 +19,9 @@ const handlePageCrash = (page) => (error) => {
 
 const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
   let browser;
+  const proxyUrl = `socks5://${TOR_HOST}:${port}`;
   try {
+    logger.info(`[port ${port}] Launching browser with proxy: ${TOR_ENABLED ? proxyUrl : 'DIRECT (Tor disabled)'}`);
     browser = await puppeteer.getBrowserInstance(port);
     const page = await browser.newPage();
     await page.setBypassCSP(true);
@@ -33,9 +35,17 @@ const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
       deviceScaleFactor: 1,
     });
     const ipAddr = await getCurrentIP(page);
-    logger.info(`Connected via IP: ${ipAddr} on port ${port}`);
+
+    if (TOR_ENABLED) {
+      logger.success(`[port ${port}] Tor proxy ${proxyUrl} → exit IP: ${ipAddr}`);
+      logger.info(`[port ${port}] If this IP differs from your server's public IP, Tor is working correctly.`);
+      logger.info(`[port ${port}] The Tor container logs should now show a "New SOCKS connection" for this request.`);
+    } else {
+      logger.warn(`[port ${port}] Tor is DISABLED — using direct IP: ${ipAddr}`);
+    }
+
     const targetUrlsForAction = _take(_shuffle(targetUrls), VIEW_ACTION_COUNT);
-    await watchVideosInSequence(page, ipAddr, targetUrlsForAction, durationInSeconds);
+    await watchVideosInSequence(page, ipAddr, targetUrlsForAction, durationInSeconds, port);
     await page.close();
   } catch (error) {
     logger.error(`Batch failed on port ${port}: ${error.message || error}`);

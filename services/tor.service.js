@@ -1,3 +1,4 @@
+const net = require('net');
 const { execWithPromise } = require('../utils/childProcessWrapper');
 
 const { logger } = require('../utils');
@@ -6,10 +7,69 @@ const { IS_PROD, TOR_ENABLED, TOR_HOST } = require('../utils/constants');
 // When TOR_HOST is not localhost, Tor is running in a separate container
 const isExternalTor = TOR_HOST !== '127.0.0.1';
 
+/**
+ * Test whether a single SOCKS port on the Tor container is reachable.
+ * Returns a promise that resolves to { port, ok, ms } or { port, ok: false, error }.
+ */
+const probeSocksPort = (host, port, timeoutMs = 5000) => new Promise((resolve) => {
+  const start = Date.now();
+  const sock = new net.Socket();
+  sock.setTimeout(timeoutMs);
+  sock.once('connect', () => {
+    const ms = Date.now() - start;
+    sock.destroy();
+    resolve({ port, ok: true, ms });
+  });
+  sock.once('timeout', () => {
+    sock.destroy();
+    resolve({ port, ok: false, error: 'timeout' });
+  });
+  sock.once('error', (err) => {
+    sock.destroy();
+    resolve({ port, ok: false, error: err.message });
+  });
+  sock.connect(port, host);
+});
+
+/**
+ * Verify connectivity to all Tor SOCKS proxy ports and log results.
+ */
+const verifyTorConnectivity = async (startPort, count) => {
+  logger.info('─────────────────────────────────────────');
+  logger.info('  Tor Connectivity Check');
+  logger.info('─────────────────────────────────────────');
+  logger.info(`Tor host: ${TOR_HOST} | Ports: ${startPort}–${startPort + count - 1}`);
+
+  const results = await Promise.all(
+    Array.from({ length: count }, (_, i) => probeSocksPort(TOR_HOST, startPort + i)),
+  );
+
+  let allOk = true;
+  results.forEach(({ port, ok, ms, error }) => {
+    if (ok) {
+      logger.success(`  SOCKS port ${port} → reachable (${ms}ms)`);
+    } else {
+      allOk = false;
+      logger.error(`  SOCKS port ${port} → UNREACHABLE (${error})`);
+    }
+  });
+
+  if (allOk) {
+    logger.success(`All ${count} Tor SOCKS ports are reachable on ${TOR_HOST}.`);
+    logger.info('Chromium browsers will be configured with --proxy-server=socks5://' + `${TOR_HOST}:<port>`);
+    logger.info('After launch, each browser will fetch its IP — if the IP differs from your server IP, Tor is working.');
+  } else {
+    logger.warn('Some Tor SOCKS ports are unreachable. Affected batches will fail.');
+  }
+  logger.info('─────────────────────────────────────────');
+  return allOk;
+};
+
 const writeTorConfig = async (startPort, count) => {
   if (!IS_PROD || !TOR_ENABLED) return Promise.resolve();
   if (isExternalTor) {
     logger.info('Tor is running in a separate container. Skipping local config.');
+    await verifyTorConnectivity(startPort, count);
     return Promise.resolve();
   }
   logger.info('App running in production. Will use rotating proxy via TOR.');
@@ -61,4 +121,4 @@ const startTor = async () => {
   }
 };
 
-module.exports = { writeTorConfig, stopTor, startTor };
+module.exports = { writeTorConfig, stopTor, startTor, verifyTorConnectivity };
