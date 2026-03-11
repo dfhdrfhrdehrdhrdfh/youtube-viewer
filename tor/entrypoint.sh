@@ -11,7 +11,7 @@ log() { echo "[tor-proxy] $(date '+%H:%M:%S') $1"; }
 
 # Fetch and log the container's public uplink IP (should be VPS IP when tunnel is active)
 check_uplink_ip() {
-  UPLINK_IP=$(wget -qO- https://api.ipify.org/ 2>/dev/null || curl -s https://api.ipify.org/ 2>/dev/null || echo "check-failed (wget/curl unavailable or no network)")
+  UPLINK_IP=$(wget -qO- -T 10 http://api.ipify.org/ 2>/dev/null || wget -qO- -T 10 http://ifconfig.me/ip 2>/dev/null || echo "check-failed (no network connectivity)")
   log "Uplink IP check: ${UPLINK_IP}"
   if [ "$TUNNEL_ENABLED" = "true" ]; then
     log "  ↳ If tunnel is working, this should be your VPS IP, NOT your local server IP."
@@ -62,11 +62,28 @@ if [ "$TUNNEL_ENABLED" = "true" ]; then
     log "  If using docker-compose.tunnel.yml this is included automatically."
   fi
 
-  # Quick connectivity check
+  # Quick connectivity check — gateway reachable?
   if ping -c1 -W3 "$TUNNEL_IP" >/dev/null 2>&1; then
     log "SUCCESS: Tunnel gateway ${TUNNEL_IP} (${TUNNEL_CONTAINER}) is reachable."
   else
     log "WARNING: Tunnel gateway ${TUNNEL_IP} (${TUNNEL_CONTAINER}) is NOT reachable. Traffic may fail."
+  fi
+
+  # End-to-end connectivity check — can we actually reach the internet through the tunnel?
+  log "Testing end-to-end internet connectivity through tunnel..."
+  TUNNEL_EXT_IP=$(wget -qO- -T 15 http://api.ipify.org/ 2>/dev/null || wget -qO- -T 15 http://ifconfig.me/ip 2>/dev/null || echo "")
+  if [ -n "$TUNNEL_EXT_IP" ]; then
+    log "SUCCESS: Internet is reachable through tunnel. External IP: ${TUNNEL_EXT_IP}"
+    log "  ↳ This should be your VPS public IP, NOT your local server IP."
+  else
+    log "WARNING: Internet is NOT reachable through the tunnel."
+    log "  Tor will likely fail to bootstrap. Troubleshooting:"
+    log "  1. Verify the Newt container can reach the internet itself:"
+    log "       docker exec ${TUNNEL_CONTAINER} wget -qO- http://api.ipify.org/"
+    log "  2. Enable IP forwarding in the Newt container:"
+    log "       docker exec ${TUNNEL_CONTAINER} sysctl -w net.ipv4.ip_forward=1"
+    log "  3. Ensure the VPS has NAT/masquerade configured."
+    log "  4. See README.md § 'Newt Tunnel (optional)' for full setup."
   fi
 
   log "============================================"
@@ -75,6 +92,9 @@ if [ "$TUNNEL_ENABLED" = "true" ]; then
   log "  Tunnel enabled  : YES"
   log "  Gateway container: ${TUNNEL_CONTAINER}"
   log "  Gateway IP       : ${TUNNEL_IP}"
+  if [ -n "$TUNNEL_EXT_IP" ]; then
+    log "  External IP      : ${TUNNEL_EXT_IP} (should be VPS IP)"
+  fi
   log "  Route            : tor → ${TUNNEL_CONTAINER} → VPS → Internet"
   log "============================================"
 fi
@@ -100,6 +120,8 @@ DataDirectory /var/lib/tor
 Log notice stdout
 # Log every new SOCKS connection and circuit at info level
 Log info stdout
+# Bootstrap progress to file — used by the Docker healthcheck to verify Tor is ready
+Log notice file /tmp/tor_bootstrap.log
 # Show safe-logging off so we can see connection details (non-sensitive in this context)
 SafeLogging 0
 EOF
@@ -156,5 +178,9 @@ log "============================================"
     sleep 60
   done
 ) &
+
+# Pre-create the bootstrap log file so Tor (running as user tor) can write to it
+touch /tmp/tor_bootstrap.log
+chown tor:tor /tmp/tor_bootstrap.log
 
 exec tor -f /etc/tor/torrc
