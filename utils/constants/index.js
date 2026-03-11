@@ -3,6 +3,8 @@ const SHOULD_FORCE_DEBUG_LOGS = process.env.YOUTUBE_VIEWER_FORCE_DEBUG === 'true
 const TOR_ENABLED = process.env.TOR_ENABLED !== 'false';
 const TOR_HOST = process.env.TOR_HOST || '127.0.0.1';
 const IP_GETTER_URL = 'https://api.ipify.org/';
+const NEWT_TUNNEL_ENABLED = process.env.NEWT_TUNNEL_ENABLED === 'true';
+const NEWT_TUNNEL_CONTAINER = process.env.NEWT_TUNNEL_CONTAINER || '';
 
 /**
  * All settings can be configured via environment variables.
@@ -26,6 +28,8 @@ module.exports = {
   TOR_ENABLED,
   TOR_HOST,
   IP_GETTER_URL,
+  NEWT_TUNNEL_ENABLED,
+  NEWT_TUNNEL_CONTAINER,
 
   START_PORT,
   BATCH_COUNT,

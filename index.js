@@ -3,6 +3,7 @@ const startViewingHandler = require('./handlers/startViewing.handler');
 const { logger, urlReader } = require('./utils');
 const {
   START_PORT, TOTAL_COUNT, BATCH_COUNT, VIEW_DURATION, TOR_ENABLED, TOR_HOST,
+  NEWT_TUNNEL_ENABLED, NEWT_TUNNEL_CONTAINER,
 } = require('./utils/constants');
 
 function getTargetUrls() {
@@ -30,6 +31,14 @@ async function main() {
     if (TOR_ENABLED) {
       logger.info(`Tor host      : ${TOR_HOST}`);
       logger.info(`SOCKS ports   : ${START_PORT}–${START_PORT + BATCH_COUNT - 1}`);
+    }
+    logger.info('─────────────────────────────────────────────');
+    logger.info(`Newt tunnel   : ${NEWT_TUNNEL_ENABLED ? 'ENABLED' : 'DISABLED'}`);
+    if (NEWT_TUNNEL_ENABLED) {
+      logger.info(`Tunnel container: ${NEWT_TUNNEL_CONTAINER || '(not set)'}`);
+      logger.info(`Traffic route   : ytviewer → tor → ${NEWT_TUNNEL_CONTAINER || 'Newt'} → VPS → Internet`);
+    } else {
+      logger.info('Traffic route   : ytviewer → tor → Internet (direct)');
     }
     logger.info('=============================================');
 

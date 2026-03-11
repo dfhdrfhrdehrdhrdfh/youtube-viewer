@@ -4,7 +4,7 @@ const _take = require('lodash/take');
 const puppeteer = require('../core/puppeteer');
 const { watchVideosInSequence } = require('../helpers');
 const { logger } = require('../utils');
-const { VIEW_ACTION_COUNT, IP_GETTER_URL, PAGE_DEFAULT_TIMEOUT, TOR_ENABLED, TOR_HOST } = require('../utils/constants');
+const { VIEW_ACTION_COUNT, IP_GETTER_URL, PAGE_DEFAULT_TIMEOUT, TOR_ENABLED, TOR_HOST, NEWT_TUNNEL_ENABLED, NEWT_TUNNEL_CONTAINER } = require('../utils/constants');
 
 const getCurrentIP = async (page) => {
   await page.goto(IP_GETTER_URL, { waitUntil: 'load' });
@@ -21,7 +21,8 @@ const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
   let browser;
   try {
     const proxyUrl = `socks5://${TOR_HOST}:${port}`;
-    logger.info(`[port ${port}] Launching browser with proxy: ${TOR_ENABLED ? proxyUrl : 'DIRECT (Tor disabled)'}`);
+    const tunnelLabel = NEWT_TUNNEL_ENABLED ? ` | tunnel: ${NEWT_TUNNEL_CONTAINER || 'enabled'}` : '';
+    logger.info(`[port ${port}] Launching browser with proxy: ${TOR_ENABLED ? proxyUrl : 'DIRECT (Tor disabled)'}${tunnelLabel}`);
     browser = await puppeteer.getBrowserInstance(port);
     const page = await browser.newPage();
     await page.setBypassCSP(true);
@@ -38,7 +39,13 @@ const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
 
     if (TOR_ENABLED) {
       logger.success(`[port ${port}] Tor proxy ${proxyUrl} → exit IP: ${ipAddr}`);
-      logger.info(`[port ${port}] If this IP differs from your server's public IP, Tor is working correctly.`);
+      if (NEWT_TUNNEL_ENABLED) {
+        logger.info(`[port ${port}] Tunnel ACTIVE — traffic routes via ${NEWT_TUNNEL_CONTAINER || 'Newt'} → VPS → Internet`);
+        logger.info(`[port ${port}] Exit IP ${ipAddr} should match your VPS public IP (not local server IP).`);
+      } else {
+        logger.info(`[port ${port}] Tunnel DISABLED — traffic routes via Tor directly to Internet.`);
+        logger.info(`[port ${port}] If exit IP ${ipAddr} differs from your server's public IP, Tor is working correctly.`);
+      }
       logger.info(`[port ${port}] The Tor container logs should now show a "New SOCKS connection" for this request.`);
     } else {
       logger.warn(`[port ${port}] Tor is DISABLED — using direct IP: ${ipAddr}`);
