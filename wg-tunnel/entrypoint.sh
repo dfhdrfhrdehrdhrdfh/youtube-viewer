@@ -40,9 +40,18 @@ else
     log "Detected default interface: ${DEFAULT_IFACE}"
 fi
 
-# Enable IP forwarding so the tor container can route through us
-sysctl -w net.ipv4.ip_forward=1
-log "IP forwarding enabled."
+# Enable IP forwarding so the tor container can route through us.
+# When Docker is started with --sysctl net.ipv4.ip_forward=1, the value is
+# pre-configured and the in-container sysctl call may fail on read-only kernels.
+# We treat that as a soft error: if the value is already 1, we continue normally.
+if sysctl -w net.ipv4.ip_forward=1 2>/dev/null; then
+    log "IP forwarding enabled."
+elif [ "$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null)" = "1" ]; then
+    log "IP forwarding already enabled (pre-configured via --sysctl flag)."
+else
+    log "❌ ERROR: Could not enable IP forwarding. Add --sysctl net.ipv4.ip_forward=1 to your docker run command, or add sysctls configuration to docker-compose.yml."
+    exit 1
+fi
 
 # Create config directory
 mkdir -p /config
@@ -61,6 +70,9 @@ AllowedIPs = 0.0.0.0/0
 PersistentKeepalive = 25
 EOF
 chmod 600 /config/wg0.conf
+
+# Clean up any lingering WireGuard interface from a previous (crashed) run
+wg-quick down /config/wg0.conf 2>/dev/null || true
 
 # Start WireGuard
 log "Starting WireGuard interface..."
