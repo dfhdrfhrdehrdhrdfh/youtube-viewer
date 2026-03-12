@@ -1,5 +1,6 @@
 #!/bin/bash
-set -e
+# NOTE: We intentionally do NOT use "set -e" here. The entrypoint must be
+# resilient to sysctl / wg-quick failures on read-only /proc/sys.
 
 log() {
     echo "[wg-tunnel] $(date '+%Y-%m-%d %H:%M:%S') $*"
@@ -31,36 +32,44 @@ log " WireGuard Tunnel Client Starting"
 log "============================================"
 log "VPS Endpoint: ${VPS_IP}:${VPS_WG_PORT}"
 
-# Detect default network interface BEFORE wg-quick changes routing
+# Detect default network interface and gateway BEFORE wg changes routing
 DEFAULT_IFACE=$(ip route show default | awk '{print $5}' | head -n1)
+DEFAULT_GW=$(ip route show default | awk '{print $3}' | head -n1)
 if [ -z "${DEFAULT_IFACE}" ]; then
     DEFAULT_IFACE="eth0"
     log "Could not detect default interface, falling back to ${DEFAULT_IFACE}"
 else
     log "Detected default interface: ${DEFAULT_IFACE}"
 fi
+if [ -z "${DEFAULT_GW}" ]; then
+    log "⚠ WARNING: Could not detect default gateway"
+else
+    log "Detected default gateway: ${DEFAULT_GW}"
+fi
 
 # Enable IP forwarding so the tor container can route through us.
-# When Docker is started with --sysctl net.ipv4.ip_forward=1, the value is
-# pre-configured and the in-container sysctl call may fail on read-only kernels.
-# We treat that as a soft error: if the value is already 1, we continue normally.
-if sysctl -w net.ipv4.ip_forward=1 2>/dev/null; then
-    log "IP forwarding enabled."
-elif [ "$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null)" = "1" ]; then
-    log "IP forwarding already enabled (pre-configured via --sysctl flag)."
+# Docker's --sysctl / sysctls directive pre-configures the value, but
+# /proc/sys may be read-only inside the container, so the sysctl write can
+# fail.  Some sysctl implementations print errors on stdout, so we redirect
+# both stdout and stderr and treat failure as non-fatal.
+sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
+if [ "$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null)" = "1" ]; then
+    log "IP forwarding is enabled."
 else
-    log "❌ ERROR: Could not enable IP forwarding. Add --sysctl net.ipv4.ip_forward=1 to your docker run command, or add sysctls configuration to docker-compose.yml."
-    exit 1
+    log "⚠ WARNING: IP forwarding could not be verified."
+    log "  Ensure your docker-compose.yml includes: sysctls: net.ipv4.ip_forward=1"
 fi
 
 # Create config directory
 mkdir -p /config
 
 # Write WireGuard client config
+# This is a pure wg(8) config — no wg-quick extensions (Address, DNS, etc.)
+# so we can use 'wg setconf' directly and avoid wg-quick's internal sysctl
+# calls that fail on read-only /proc/sys.
 log "Writing WireGuard client configuration..."
 cat > /config/wg0.conf << EOF
 [Interface]
-Address = 10.13.13.2/24
 PrivateKey = ${WG_CLIENT_PRIVATE_KEY}
 
 [Peer]
@@ -71,12 +80,43 @@ PersistentKeepalive = 25
 EOF
 chmod 600 /config/wg0.conf
 
-# Clean up any lingering WireGuard interface from a previous (crashed) run
-wg-quick down /config/wg0.conf 2>/dev/null || true
+# Function to bring up the WireGuard interface and routing.
+# Used both at startup and for reconnection in the health loop.
+setup_wg() {
+    ip link del wg0 2>/dev/null || true
+    if ! ip link add wg0 type wireguard; then
+        log "❌ ERROR: Failed to create WireGuard interface."
+        log "  The host kernel must support WireGuard (Linux 5.6+ or wireguard-dkms)."
+        return 1
+    fi
+    wg setconf wg0 /config/wg0.conf || return 1
+    ip addr add 10.13.13.2/24 dev wg0 2>/dev/null || log "⚠ Address 10.13.13.2/24 may already be assigned (non-fatal)"
+    ip link set wg0 up || return 1
 
-# Start WireGuard
+    # Routing: send all traffic through the WireGuard tunnel, but keep the
+    # VPS endpoint itself reachable through the original default gateway so
+    # the encrypted WireGuard packets can actually reach the VPS.
+    if [ -n "${DEFAULT_GW}" ]; then
+        ip route add "${VPS_IP}/32" via "${DEFAULT_GW}" dev "${DEFAULT_IFACE}" 2>/dev/null \
+            || log "⚠ Route to VPS endpoint may already exist (non-fatal)"
+    fi
+    # 0.0.0.0/1 + 128.0.0.0/1 are more specific than the default route
+    # (0.0.0.0/0) so they take priority, but Docker-subnet routes (/16 etc.)
+    # are even more specific and continue to work for inter-container traffic.
+    ip route add 0.0.0.0/1 dev wg0 2>/dev/null \
+        || log "⚠ Route 0.0.0.0/1 via wg0 may already exist (non-fatal)"
+    ip route add 128.0.0.0/1 dev wg0 2>/dev/null \
+        || log "⚠ Route 128.0.0.0/1 via wg0 may already exist (non-fatal)"
+    return 0
+}
+
+# Clean up any lingering WireGuard interface from a previous (crashed) run,
+# then bring up a fresh interface.
 log "Starting WireGuard interface..."
-wg-quick up /config/wg0.conf
+if ! setup_wg; then
+    log "❌ Failed to start WireGuard interface. Exiting."
+    exit 1
+fi
 log "WireGuard interface is up."
 
 # Set up iptables for NAT and forwarding
@@ -126,8 +166,10 @@ while true; do
         log "Tunnel health: OK (VPS reachable)"
     else
         log "⚠ Tunnel health: VPS (10.13.13.1) unreachable — attempting reconnect..."
-        wg-quick down /config/wg0.conf 2>/dev/null || true
-        sleep 2
-        wg-quick up /config/wg0.conf 2>/dev/null || log "❌ Reconnect failed"
+        if setup_wg; then
+            log "Reconnect succeeded."
+        else
+            log "❌ Reconnect failed"
+        fi
     fi
 done

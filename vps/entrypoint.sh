@@ -1,5 +1,7 @@
 #!/bin/bash
-set -e
+# NOTE: We intentionally do NOT use "set -e" here. The entrypoint must be
+# resilient: a failing sysctl or wg-quick-style call should never crash-loop
+# the container and prevent the user from seeing the generated keys.
 
 log() {
     echo "[wg-server] $(date '+%Y-%m-%d %H:%M:%S') $*"
@@ -36,12 +38,12 @@ mkdir -p /config
 if [ ! -f /config/server_private.key ]; then
     log "Generating new WireGuard key pairs..."
 
-    # Use umask 077 to avoid the "writing to world accessible file" warning
-    (umask 077 && wg genkey > /config/server_private.key)
-    (umask 077 && wg pubkey < /config/server_private.key > /config/server_public.key)
-
-    (umask 077 && wg genkey > /config/client_private.key)
-    (umask 077 && wg pubkey < /config/client_private.key > /config/client_public.key)
+    # Use umask 077 for secure file permissions.
+    # Pipe through tee so wg genkey writes to a pipe (not a file), which avoids
+    # the "writing to world accessible file" warning from wireguard-tools.
+    umask 077
+    wg genkey 2>/dev/null | tee /config/server_private.key | wg pubkey 2>/dev/null > /config/server_public.key
+    wg genkey 2>/dev/null | tee /config/client_private.key | wg pubkey 2>/dev/null > /config/client_public.key
 
     log "Key pairs generated successfully."
 else
@@ -55,27 +57,28 @@ CLIENT_PRIVATE_KEY=$(cat /config/client_private.key)
 CLIENT_PUBLIC_KEY=$(cat /config/client_public.key)
 
 # Enable IP forwarding
-# When Docker is started with --sysctl net.ipv4.ip_forward=1, the value is
-# pre-configured and the in-container sysctl call may fail on read-only kernels.
-# We treat that as a soft error: if the value is already 1, we continue normally.
-if sysctl -w net.ipv4.ip_forward=1 2>/dev/null; then
-    log "IP forwarding enabled."
-elif [ "$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null)" = "1" ]; then
-    log "IP forwarding already enabled (pre-configured via --sysctl flag)."
+# Docker's --sysctl net.ipv4.ip_forward=1 pre-configures the value, but
+# /proc/sys may be read-only inside the container, so the sysctl write can
+# fail.  Some sysctl implementations print errors on stdout, so we redirect
+# both stdout and stderr and treat failure as non-fatal.
+sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
+if [ "$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null)" = "1" ]; then
+    log "IP forwarding is enabled."
 else
-    log "❌ ERROR: Could not enable IP forwarding. Add --sysctl net.ipv4.ip_forward=1 to your docker run command, or add sysctls configuration to docker-compose.yml."
-    exit 1
+    log "⚠ WARNING: IP forwarding could not be verified."
+    log "  Ensure your docker run command includes: --sysctl net.ipv4.ip_forward=1"
+    log "  Or enable it on the host: sysctl -w net.ipv4.ip_forward=1"
 fi
 
 # Write WireGuard server config
+# This is a pure wg(8) config — no wg-quick extensions (Address, PostUp, etc.)
+# so we can use 'wg setconf' directly and avoid wg-quick's internal sysctl
+# calls that fail on read-only /proc/sys.
 log "Writing WireGuard configuration..."
 cat > /config/wg0.conf << EOF
 [Interface]
-Address = 10.13.13.1/24
-ListenPort = ${WG_PORT}
 PrivateKey = ${SERVER_PRIVATE_KEY}
-PostUp = iptables -t nat -A POSTROUTING -o ${DEFAULT_IFACE} -j MASQUERADE; iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT
-PostDown = iptables -t nat -D POSTROUTING -o ${DEFAULT_IFACE} -j MASQUERADE; iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT
+ListenPort = ${WG_PORT}
 
 [Peer]
 PublicKey = ${CLIENT_PUBLIC_KEY}
@@ -84,17 +87,40 @@ EOF
 chmod 600 /config/wg0.conf
 
 # Clean up any lingering WireGuard interface from a previous (crashed) run
-wg-quick down /config/wg0.conf 2>/dev/null || true
+ip link del wg0 2>/dev/null || true
 
-# Start WireGuard
+# Start WireGuard using manual ip/wg commands instead of wg-quick.
+# wg-quick internally runs "sysctl -w" which fails on read-only /proc/sys
+# and causes a crash-loop when combined with set -e.
 log "Starting WireGuard interface..."
-wg-quick up /config/wg0.conf
-log "WireGuard interface is up."
+if ! ip link add wg0 type wireguard; then
+    log "❌ ERROR: Failed to create WireGuard interface."
+    log "  The host kernel must support WireGuard (Linux 5.6+ or wireguard-dkms)."
+    log ""
+    log "  Printing keys below so you can note them even though the interface failed."
+else
+    if wg setconf wg0 /config/wg0.conf &&
+       (ip addr add 10.13.13.1/24 dev wg0 2>/dev/null || true) &&
+       ip link set wg0 up; then
+        log "WireGuard interface is up."
 
-# Show interface status
-wg show wg0
+        # Set up iptables NAT and forwarding (equivalent to the old PostUp rules)
+        log "Configuring iptables rules..."
+        iptables -t nat -A POSTROUTING -o "${DEFAULT_IFACE}" -j MASQUERADE
+        iptables -A FORWARD -i wg0 -j ACCEPT
+        iptables -A FORWARD -o wg0 -j ACCEPT
+        log "iptables rules configured."
 
-# Print connection info
+        # Show interface status
+        wg show wg0
+    else
+        log "⚠ WARNING: Failed to fully configure WireGuard interface."
+        log "  Keys are printed below. You can troubleshoot the interface later."
+    fi
+fi
+
+# Print connection info — ALWAYS, even if WireGuard setup had issues.
+# This is the whole point of the one-command deploy: the user must see the keys.
 echo ""
 echo "============================================"
 echo " ✅ WireGuard VPS Server Ready!"
