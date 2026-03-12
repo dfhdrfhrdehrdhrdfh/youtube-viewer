@@ -107,6 +107,10 @@ setup_wg() {
         || log "⚠ Route 0.0.0.0/1 via wg0 may already exist (non-fatal)"
     ip route add 128.0.0.0/1 dev wg0 2>/dev/null \
         || log "⚠ Route 128.0.0.0/1 via wg0 may already exist (non-fatal)"
+    # Configure DNS to use public resolvers reachable through the tunnel.
+    # Docker's embedded DNS (127.0.0.11) may fail to resolve external hostnames
+    # once 0.0.0.0/1 + 128.0.0.0/1 routes redirect all traffic through wg0.
+    echo -e "nameserver 8.8.8.8\nnameserver 1.1.1.1" > /etc/resolv.conf
     return 0
 }
 
@@ -131,11 +135,14 @@ log "WireGuard interface is up."
 
 # Set up iptables for NAT and forwarding
 # Traffic from the tor container arrives on DEFAULT_IFACE and exits through wg0
-log "Configuring iptables rules..."
-iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
-iptables -A FORWARD -i "${DEFAULT_IFACE}" -o wg0 -j ACCEPT
-iptables -A FORWARD -i wg0 -o "${DEFAULT_IFACE}" -m state --state RELATED,ESTABLISHED -j ACCEPT
-log "iptables rules configured."
+apply_iptables() {
+    log "Configuring iptables rules..."
+    iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
+    iptables -A FORWARD -i "${DEFAULT_IFACE}" -o wg0 -j ACCEPT
+    iptables -A FORWARD -i wg0 -o "${DEFAULT_IFACE}" -j ACCEPT
+    log "iptables rules configured."
+}
+apply_iptables
 
 # Log routing table and iptables state for debugging
 log "Current routing table:"
@@ -203,9 +210,7 @@ while true; do
         iptables -t nat -F 2>/dev/null || true
         iptables -X 2>/dev/null || true
         if setup_wg; then
-            iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
-            iptables -A FORWARD -i "${DEFAULT_IFACE}" -o wg0 -j ACCEPT
-            iptables -A FORWARD -i wg0 -o "${DEFAULT_IFACE}" -m state --state RELATED,ESTABLISHED -j ACCEPT
+            apply_iptables
             log "Reconnect succeeded — iptables rules re-applied."
         else
             log "❌ Reconnect failed"
@@ -226,9 +231,7 @@ while true; do
             iptables -t nat -F 2>/dev/null || true
             iptables -X 2>/dev/null || true
             if setup_wg; then
-                iptables -t nat -A POSTROUTING -o wg0 -j MASQUERADE
-                iptables -A FORWARD -i "${DEFAULT_IFACE}" -o wg0 -j ACCEPT
-                iptables -A FORWARD -i wg0 -o "${DEFAULT_IFACE}" -m state --state RELATED,ESTABLISHED -j ACCEPT
+                apply_iptables
                 log "Reconnect completed — iptables rules re-applied."
             else
                 log "❌ Reconnect failed"
