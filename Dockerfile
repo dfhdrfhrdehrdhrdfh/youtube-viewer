@@ -25,6 +25,8 @@ COPY ./helpers ./helpers
 COPY ./services ./services
 COPY ./utils ./utils
 COPY ./index.js .
+COPY ./agentManager.js .
+COPY ./cli.js .
 COPY ./package.json .
 
 RUN npm install --production
