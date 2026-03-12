@@ -114,7 +114,10 @@ setup_wg() {
 # then bring up a fresh interface.
 log "Starting WireGuard interface..."
 
-# Flush all iptables rules to prevent duplicates on container restart
+# Flush all iptables rules to prevent duplicates on container restart.
+# This container exclusively manages its own iptables rules (NAT + FORWARD for
+# WireGuard tunneling). Docker's own networking rules live on the host, not inside
+# the container, so flushing here is safe.
 log "Flushing existing iptables rules (clean slate for restart)..."
 iptables -F 2>/dev/null || true
 iptables -t nat -F 2>/dev/null || true
@@ -190,6 +193,7 @@ log ""
 log "Tunnel is running. Waiting for connections from tor container..."
 
 # Health monitoring loop — checks tunnel connectivity periodically
+HEALTH_COUNT=0
 while true; do
     sleep 30
     if ! ping -c1 -W3 10.13.13.1 >/dev/null 2>&1; then
@@ -209,7 +213,7 @@ while true; do
         continue
     fi
     # Periodically verify external IP still matches VPS IP (every 5 min, not every 30s)
-    HEALTH_COUNT=$((${HEALTH_COUNT:-0} + 1))
+    HEALTH_COUNT=$((HEALTH_COUNT + 1))
     if [ $((HEALTH_COUNT % 10)) -eq 0 ]; then
         HEALTH_EXT_IP=$(curl -s --max-time 5 https://api.ipify.org 2>/dev/null || echo "check-failed")
         if [ "${HEALTH_EXT_IP}" = "${VPS_IP}" ]; then
