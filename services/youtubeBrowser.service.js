@@ -6,7 +6,7 @@ const { watchVideosInSequence } = require('../helpers');
 const { logger } = require('../utils');
 const {
   VIEW_ACTION_COUNT, IP_GETTER_URL, PAGE_DEFAULT_TIMEOUT, TOR_ENABLED, TOR_HOST,
-  NEWT_TUNNEL_ENABLED, NEWT_TUNNEL_CONTAINER,
+  TUNNEL_ENABLED,
 } = require('../utils/constants');
 const { getContainerDirectIp } = require('./tor.service');
 
@@ -25,7 +25,7 @@ const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
   let browser;
   try {
     const proxyUrl = `socks5://${TOR_HOST}:${port}`;
-    const tunnelLabel = NEWT_TUNNEL_ENABLED ? ` | tunnel: ${NEWT_TUNNEL_CONTAINER || 'enabled'}` : '';
+    const tunnelLabel = TUNNEL_ENABLED ? ' | tunnel: WireGuard → VPS' : '';
     logger.info(`[port ${port}] Launching browser with proxy: ${TOR_ENABLED ? proxyUrl : 'DIRECT (Tor disabled)'}${tunnelLabel}`);
     browser = await puppeteer.getBrowserInstance(port);
     const page = await browser.newPage();
@@ -45,8 +45,8 @@ const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
     const directIpKnown = directIp && !directIp.startsWith('check-failed');
 
     if (TOR_ENABLED) {
-      if (NEWT_TUNNEL_ENABLED) {
-        logger.success(`[port ${port}] Tor exit IP (via ${NEWT_TUNNEL_CONTAINER || 'Newt'} → VPS tunnel): ${ipAddr}`);
+      if (TUNNEL_ENABLED) {
+        logger.success(`[port ${port}] Tor exit IP (via WireGuard → VPS tunnel): ${ipAddr}`);
         if (directIpKnown && ipAddr !== directIp) {
           logger.success(`[port ${port}] ✓ Routing OK — exit IP ${ipAddr} differs from container uplink IP ${directIp}`);
         } else if (directIpKnown && ipAddr === directIp) {

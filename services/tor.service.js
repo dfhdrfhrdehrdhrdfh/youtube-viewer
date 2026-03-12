@@ -5,7 +5,7 @@ const { execWithPromise } = require('../utils/childProcessWrapper');
 
 const { logger } = require('../utils');
 const {
-  IS_PROD, TOR_ENABLED, TOR_HOST, NEWT_TUNNEL_ENABLED, NEWT_TUNNEL_CONTAINER, IP_GETTER_URL,
+  IS_PROD, TOR_ENABLED, TOR_HOST, TUNNEL_ENABLED, IP_GETTER_URL,
 } = require('../utils/constants');
 
 // When TOR_HOST is not localhost, Tor is running in a separate container
@@ -74,7 +74,7 @@ const verifyTorConnectivity = async (startPort, count) => {
   logger.info('  Tor Connectivity Check');
   logger.info('─────────────────────────────────────────');
   logger.info(`Tor host: ${TOR_HOST} | Ports: ${startPort}–${startPort + count - 1}`);
-  logger.info(`Newt tunnel: ${NEWT_TUNNEL_ENABLED ? `ENABLED (container: ${NEWT_TUNNEL_CONTAINER || 'unknown'})` : 'DISABLED (direct internet)'}`);
+  logger.info(`VPS tunnel: ${TUNNEL_ENABLED ? 'ENABLED (WireGuard → VPS)' : 'DISABLED (direct internet)'}`);
 
   const results = await Promise.all(
     Array.from({ length: count }, (_, i) => probeSocksPort(TOR_HOST, startPort + i)),
@@ -93,8 +93,8 @@ const verifyTorConnectivity = async (startPort, count) => {
   if (allOk) {
     logger.success(`All ${count} Tor SOCKS ports are reachable on ${TOR_HOST}.`);
     logger.info('Chromium browsers will be configured with --proxy-server=socks5://' + `${TOR_HOST}:<port>`);
-    if (NEWT_TUNNEL_ENABLED) {
-      logger.info(`Tunnel routing: ytviewer → tor (${TOR_HOST}) → ${NEWT_TUNNEL_CONTAINER || 'Newt'} → VPS → Internet`);
+    if (TUNNEL_ENABLED) {
+      logger.info(`Tunnel routing: ytviewer → tor (${TOR_HOST}) → WireGuard → VPS → Internet`);
     } else {
       logger.info('Tunnel routing: ytviewer → tor → Internet (direct)');
     }
@@ -109,9 +109,9 @@ const verifyTorConnectivity = async (startPort, count) => {
   const uplinkIp = await getDirectUplinkIp();
   _containerDirectIp = uplinkIp;
   logger.info(`  Container direct IP : ${uplinkIp}`);
-  if (NEWT_TUNNEL_ENABLED) {
+  if (TUNNEL_ENABLED) {
     logger.info(`  ↳ Tunnel ACTIVE — each browser's Tor exit IP should differ from ${uplinkIp}`);
-    logger.info(`    (the Tor container exits via the VPS, but the Tor exit node will be a random relay)`);
+    logger.info('    (the Tor container exits via the VPS, but the Tor exit node will be a random relay)');
   } else {
     logger.info(`  ↳ Each browser's Tor exit IP should differ from ${uplinkIp} — if they match, Tor is not routing`);
   }

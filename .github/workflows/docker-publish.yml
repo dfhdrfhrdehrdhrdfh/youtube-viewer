@@ -71,3 +71,37 @@ jobs:
           push: true
           tags: ${{ steps.meta-tor.outputs.tags }}
           labels: ${{ steps.meta-tor.outputs.labels }}
+
+      - name: Extract metadata for wg-tunnel image
+        id: meta-wg
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/youtube-viewer-wg
+          tags: |
+            type=sha
+            type=raw,value=${{ steps.branch-tag.outputs.tag }}
+
+      - name: Build and push wg-tunnel image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./wg-tunnel
+          push: true
+          tags: ${{ steps.meta-wg.outputs.tags }}
+          labels: ${{ steps.meta-wg.outputs.labels }}
+
+      - name: Extract metadata for vps image
+        id: meta-vps
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/youtube-viewer-vps
+          tags: |
+            type=sha
+            type=raw,value=${{ steps.branch-tag.outputs.tag }}
+
+      - name: Build and push vps image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./vps
+          push: true
+          tags: ${{ steps.meta-vps.outputs.tags }}
+          labels: ${{ steps.meta-vps.outputs.labels }}

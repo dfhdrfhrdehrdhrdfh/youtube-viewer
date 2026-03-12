@@ -8,8 +8,7 @@ services:
     environment:
       - TOR_START_PORT=${TOR_START_PORT:-9052}
       - TOR_NUM_PORTS=${BATCH_COUNT:-6}
-      - NEWT_TUNNEL_ENABLED=${NEWT_TUNNEL_ENABLED:-false}
-      - NEWT_TUNNEL_CONTAINER=${NEWT_TUNNEL_CONTAINER:-}
+      - TUNNEL_ENABLED=${TUNNEL_ENABLED:-false}
     volumes:
       - tor-data:/var/lib/tor
     networks:
@@ -40,8 +39,7 @@ services:
       - VIEW_DURATION=${VIEW_DURATION:-50}
       - PAGE_DEFAULT_TIMEOUT=${PAGE_DEFAULT_TIMEOUT:-600}
       - YOUTUBE_VIEWER_FORCE_DEBUG=${YOUTUBE_VIEWER_FORCE_DEBUG:-false}
-      - NEWT_TUNNEL_ENABLED=${NEWT_TUNNEL_ENABLED:-false}
-      - NEWT_TUNNEL_CONTAINER=${NEWT_TUNNEL_CONTAINER:-}
+      - TUNNEL_ENABLED=${TUNNEL_ENABLED:-false}
     networks:
       - ytnet
 

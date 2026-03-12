@@ -1,54 +1,79 @@
 # =============================================================================
-# YouTube Viewer — Docker Compose WITH Newt Tunnel
+# YouTube Viewer — Docker Compose WITH WireGuard VPS Tunnel
 # =============================================================================
 # This is a COMPLETE standalone docker-compose file. It includes everything
-# from docker-compose.yml PLUS the Newt tunnel routing configuration.
+# from docker-compose.yml PLUS the WireGuard tunnel configuration.
 #
 # Usage (Arcane / Web UI):
-#   1. Paste this entire file into the Compose field.
-#   2. Paste .env.example into the Environment field.
-#   3. Set NEWT_TUNNEL_NETWORK and NEWT_TUNNEL_CONTAINER (NEWT_TUNNEL_ENABLED is already
-#      true by default in this file — no need to set it unless overriding to false).
-#   4. Click Deploy. Docker pulls all images and creates networks/volumes automatically.
+#   1. First deploy the VPS receiver — see README.md for the one-command setup.
+#   2. Copy the keys from the VPS output.
+#   3. Create a new stack in Arcane.
+#   4. Paste this file into the Compose field.
+#   5. Paste .env.example into the Environment field.
+#   6. Fill in YOUTUBE_URLS and the tunnel settings (VPS_IP, WG_SERVER_PUBLIC_KEY,
+#      WG_CLIENT_PRIVATE_KEY) from the VPS output.
+#   7. Click Deploy. Docker pulls all images and creates networks/volumes
+#      automatically — no cloning, no building, no extra commands.
 #
 # Usage (Docker CLI):
 #   docker-compose -f docker-compose.tunnel.yml up -d
 #
-# Prerequisites:
-#   1. A running Newt tunnel container on the same Docker host, connected to
-#      your external VPS that runs Pangolin.
-#   2. That Newt container must be attached to a Docker network whose name you
-#      specify in NEWT_TUNNEL_NETWORK (see .env).
-#   3. The Newt container (or VPS) must have IP forwarding enabled and
-#      NAT/masquerade configured so that traffic from the tor container can
-#      exit via the VPS.
+# Architecture:
+#   ytviewer → tor → wg-tunnel ═══WireGuard═══▶ VPS (wg-server) → Internet
+#           ytnet
 #
-# Required .env variables when NEWT_TUNNEL_ENABLED=true:
-#   NEWT_TUNNEL_NETWORK   — Docker network name shared with the Newt container
-#   NEWT_TUNNEL_CONTAINER — Name of the Newt container (IP is auto-resolved via Docker DNS)
+# Required .env variables for tunnel:
+#   VPS_IP                — Public IP of your VPS
+#   WG_SERVER_PUBLIC_KEY  — WireGuard server public key (from VPS setup)
+#   WG_CLIENT_PRIVATE_KEY — WireGuard client private key (from VPS setup)
 # =============================================================================
 
 version: '3'
 
 services:
+  wg-tunnel:
+    image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer-wg:${WG_IMAGE_TAG:-latest}
+    container_name: wg-tunnel
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - VPS_IP=${VPS_IP:?VPS_IP must be set to your VPS public IP address}
+      - VPS_WG_PORT=${VPS_WG_PORT:-51820}
+      - WG_CLIENT_PRIVATE_KEY=${WG_CLIENT_PRIVATE_KEY:?WG_CLIENT_PRIVATE_KEY must be set — get it from the VPS setup output}
+      - WG_SERVER_PUBLIC_KEY=${WG_SERVER_PUBLIC_KEY:?WG_SERVER_PUBLIC_KEY must be set — get it from the VPS setup output}
+    networks:
+      - ytnet
+    healthcheck:
+      # 10.13.13.1 = VPS WireGuard IP (must match vps/entrypoint.sh)
+      test: ["CMD-SHELL", "ping -c1 -W3 10.13.13.1 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
   tor:
     image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer-tor:${TOR_IMAGE_TAG:-latest}
     container_name: tor-proxy
     restart: unless-stopped
-    # NET_ADMIN is required to change the default route inside the container
     cap_add:
       - NET_ADMIN
+    depends_on:
+      wg-tunnel:
+        condition: service_healthy
     environment:
       - TOR_START_PORT=${TOR_START_PORT:-9052}
       - TOR_NUM_PORTS=${BATCH_COUNT:-6}
-      # Default true here — this file is the tunnel variant; override with NEWT_TUNNEL_ENABLED=false to disable
-      - NEWT_TUNNEL_ENABLED=${NEWT_TUNNEL_ENABLED:-true}
-      - NEWT_TUNNEL_CONTAINER=${NEWT_TUNNEL_CONTAINER:-}
+      # Default true — this file is the tunnel variant
+      - TUNNEL_ENABLED=${TUNNEL_ENABLED:-true}
+      - TUNNEL_GATEWAY=wg-tunnel
     volumes:
       - tor-data:/var/lib/tor
     networks:
       - ytnet
-      - newt_net
     healthcheck:
       test: ["CMD-SHELL", "grep -q 'Bootstrapped 100%' /tmp/tor_bootstrap.log 2>/dev/null"]
       interval: 15s
@@ -75,18 +100,14 @@ services:
       - VIEW_DURATION=${VIEW_DURATION:-50}
       - PAGE_DEFAULT_TIMEOUT=${PAGE_DEFAULT_TIMEOUT:-600}
       - YOUTUBE_VIEWER_FORCE_DEBUG=${YOUTUBE_VIEWER_FORCE_DEBUG:-false}
-      # Default true here — this file is the tunnel variant; override with NEWT_TUNNEL_ENABLED=false to disable
-      - NEWT_TUNNEL_ENABLED=${NEWT_TUNNEL_ENABLED:-true}
-      - NEWT_TUNNEL_CONTAINER=${NEWT_TUNNEL_CONTAINER:-}
+      # Default true — this file is the tunnel variant
+      - TUNNEL_ENABLED=${TUNNEL_ENABLED:-true}
     networks:
       - ytnet
 
 networks:
   ytnet:
     driver: bridge
-  newt_net:
-    external: true
-    name: ${NEWT_TUNNEL_NETWORK:?NEWT_TUNNEL_NETWORK must be set to the Docker network name shared with your Newt container (see .env or .env.example)}
 
 volumes:
   tor-data:

@@ -3,10 +3,10 @@ const _random = require('lodash/random');
 
 const { logger } = require('../utils');
 
-const { TOR_ENABLED, NEWT_TUNNEL_ENABLED, NEWT_TUNNEL_CONTAINER } = require('../utils/constants');
+const { TOR_ENABLED, TUNNEL_ENABLED } = require('../utils/constants');
 
 const watchVideosInSequence = async (page, ipAddr, targetUrlsList, durationInSeconds, port) => {
-  const tunnelLabel = NEWT_TUNNEL_ENABLED ? ` via tunnel (${NEWT_TUNNEL_CONTAINER || 'Newt'} → VPS)` : '';
+  const tunnelLabel = TUNNEL_ENABLED ? ' via WireGuard VPS tunnel' : '';
   for (const url of targetUrlsList) {
     const startTime = Date.now();
     const routeLabel = TOR_ENABLED ? `via Tor IP ${ipAddr}${tunnelLabel}` : `via direct IP ${ipAddr}`;
