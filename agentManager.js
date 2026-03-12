@@ -50,8 +50,8 @@ function startAgent() {
       const agent = agents.get(agentName);
       if (agent) {
         agent.status = agent.status === 'stopping' ? 'stopped' : 'completed';
+        logger.info(`[${agentName}] Finished (${agent.status})`);
       }
-      logger.info(`[${agentName}] Finished (${agents.get(agentName).status})`);
     })
     .catch((err) => {
       const agent = agents.get(agentName);

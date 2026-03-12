@@ -14,6 +14,16 @@ function printUsage() {
   console.log('  node cli.js list           List all agents and their status');
 }
 
+function formatUptime(seconds) {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m < 60) return `${m}m ${s}s`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return `${h}h ${rm}m`;
+}
+
 if (!action || !['start', 'stop', 'list'].includes(action)) {
   printUsage();
   process.exit(1);
@@ -45,7 +55,7 @@ client.on('data', (data) => {
         console.log('Agents:');
         response.agents.forEach((a) => {
           const uptime = Math.round((Date.now() - new Date(a.startTime).getTime()) / 1000);
-          console.log(`  ${a.name}  —  ${a.status}  (uptime: ${uptime}s)`);
+          console.log(`  ${a.name}  —  ${a.status}  (uptime: ${formatUptime(uptime)})`);
         });
       }
     } else {
