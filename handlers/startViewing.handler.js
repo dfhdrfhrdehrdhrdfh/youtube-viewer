@@ -4,11 +4,11 @@ const TorService = require('../services/tor.service');
 const YTBrowserService = require('../services/youtubeBrowser.service');
 const { logger } = require('../utils');
 
-let successes = 0;
-let failures = 0;
-let total = 0;
-
 const startViewingHandler = async (options, index) => {
+  let successes = 0;
+  let failures = 0;
+  let total = 0;
+
   await TorService.startTor();
   const promiseArr = [];
   for (let i = 0; i < options.batchCount; i += 1) {
@@ -29,6 +29,7 @@ const startViewingHandler = async (options, index) => {
       }
     });
     logger.info(`Succeeded - ${successes}\t Failed - ${failures}\t Total - ${total}`);
+    return { successes, failures, total };
   });
 };
 

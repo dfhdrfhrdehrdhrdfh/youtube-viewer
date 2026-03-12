@@ -21,7 +21,10 @@ const handlePageCrash = (page) => (error) => {
   page.close();
 };
 
-const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
+const viewVideosInBatch = async (options) => {
+  const { targetUrls, durationInSeconds, port } = options;
+  const actionCount = options.viewActionCount || VIEW_ACTION_COUNT;
+  const pageTimeout = options.pageDefaultTimeout || PAGE_DEFAULT_TIMEOUT;
   let browser;
   try {
     const proxyUrl = `socks5://${TOR_HOST}:${port}`;
@@ -30,7 +33,7 @@ const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
     browser = await puppeteer.getBrowserInstance(port);
     const page = await browser.newPage();
     await page.setBypassCSP(true);
-    page.setDefaultTimeout(PAGE_DEFAULT_TIMEOUT * 1000);
+    page.setDefaultTimeout(pageTimeout * 1000);
     page.on('error', handlePageCrash(page));
     page.on('pageerror', handlePageCrash(page));
 
@@ -70,7 +73,7 @@ const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
       logger.warn(`[port ${port}] Tor is DISABLED — using direct IP: ${ipAddr}`);
     }
 
-    const targetUrlsForAction = _take(_shuffle(targetUrls), VIEW_ACTION_COUNT);
+    const targetUrlsForAction = _take(_shuffle(targetUrls), actionCount);
     await watchVideosInSequence(page, ipAddr, targetUrlsForAction, durationInSeconds, port);
     await page.close();
   } catch (error) {
