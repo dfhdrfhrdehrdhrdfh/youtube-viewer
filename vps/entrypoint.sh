@@ -26,7 +26,7 @@ if [ -z "${DEFAULT_IFACE}" ]; then
 fi
 log "Default network interface: ${DEFAULT_IFACE}"
 
-WG_PORT=${WG_PORT:-51820}
+WG_PORT=${WG_PORT:-51821}
 log "WireGuard port: ${WG_PORT}"
 
 # Create config directory
