@@ -90,20 +90,23 @@ setup_wg() {
         return 1
     fi
     wg setconf wg0 /config/wg0.conf || return 1
-    ip addr add 10.13.13.2/24 dev wg0 2>/dev/null || true
+    ip addr add 10.13.13.2/24 dev wg0 2>/dev/null || log "⚠ Address 10.13.13.2/24 may already be assigned (non-fatal)"
     ip link set wg0 up || return 1
 
     # Routing: send all traffic through the WireGuard tunnel, but keep the
     # VPS endpoint itself reachable through the original default gateway so
     # the encrypted WireGuard packets can actually reach the VPS.
     if [ -n "${DEFAULT_GW}" ]; then
-        ip route add "${VPS_IP}/32" via "${DEFAULT_GW}" dev "${DEFAULT_IFACE}" 2>/dev/null || true
+        ip route add "${VPS_IP}/32" via "${DEFAULT_GW}" dev "${DEFAULT_IFACE}" 2>/dev/null \
+            || log "⚠ Route to VPS endpoint may already exist (non-fatal)"
     fi
     # 0.0.0.0/1 + 128.0.0.0/1 are more specific than the default route
     # (0.0.0.0/0) so they take priority, but Docker-subnet routes (/16 etc.)
     # are even more specific and continue to work for inter-container traffic.
-    ip route add 0.0.0.0/1 dev wg0 2>/dev/null || true
-    ip route add 128.0.0.0/1 dev wg0 2>/dev/null || true
+    ip route add 0.0.0.0/1 dev wg0 2>/dev/null \
+        || log "⚠ Route 0.0.0.0/1 via wg0 may already exist (non-fatal)"
+    ip route add 128.0.0.0/1 dev wg0 2>/dev/null \
+        || log "⚠ Route 128.0.0.0/1 via wg0 may already exist (non-fatal)"
     return 0
 }
 

@@ -100,7 +100,7 @@ if ! ip link add wg0 type wireguard; then
     log "  Printing keys below so you can note them even though the interface failed."
 else
     if wg setconf wg0 /config/wg0.conf &&
-       ip addr add 10.13.13.1/24 dev wg0 &&
+       (ip addr add 10.13.13.1/24 dev wg0 2>/dev/null || true) &&
        ip link set wg0 up; then
         log "WireGuard interface is up."
 
