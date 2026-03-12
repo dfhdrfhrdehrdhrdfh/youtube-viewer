@@ -90,6 +90,8 @@ services:
     depends_on:
       tor:
         condition: service_healthy
+    ports:
+      - "8093:8093"
     environment:
       - NODE_ENV=production
       - YOUTUBE_URLS=${YOUTUBE_URLS}
@@ -107,6 +109,12 @@ services:
       - VPS_IP=${VPS_IP}
     networks:
       - ytnet
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8093/api/status || exit 1"]
+      start_period: 30s
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
 networks:
   ytnet:

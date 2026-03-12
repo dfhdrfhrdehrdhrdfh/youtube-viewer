@@ -4,6 +4,7 @@ const net = require('net');
 const TorService = require('./services/tor.service');
 const agentManager = require('./agentManager');
 const { logger } = require('./utils');
+const { startWebServer } = require('./web/server');
 const {
   START_PORT, TOTAL_COUNT, BATCH_COUNT, VIEW_DURATION, TOR_ENABLED, TOR_HOST,
   TUNNEL_ENABLED,
@@ -84,6 +85,9 @@ async function main() {
     // ── IPC server for CLI management ───────────────────────────────
     startIpcServer();
 
+    // ── Web server ──────────────────────────────────────────────────
+    startWebServer(8093);
+
     // ── Auto-start first agent ──────────────────────────────────────
     logger.info('Auto-starting first agent...');
     agentManager.startAgent();
@@ -93,6 +97,7 @@ async function main() {
     logger.info('  docker exec youtube-viewer node cli.js start');
     logger.info('  docker exec youtube-viewer node cli.js stop <name>');
     logger.info('  docker exec youtube-viewer node cli.js list');
+    logger.info('  Web dashboard: http://localhost:8093');
     logger.info('─────────────────────────────────────────────');
   } catch (error) {
     logger.error(`Failed to initialise: ${error.message || error}`);

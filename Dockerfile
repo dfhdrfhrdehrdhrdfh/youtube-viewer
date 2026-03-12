@@ -24,11 +24,14 @@ COPY ./handlers ./handlers
 COPY ./helpers ./helpers
 COPY ./services ./services
 COPY ./utils ./utils
+COPY ./web ./web
 COPY ./index.js .
 COPY ./agentManager.js .
 COPY ./cli.js .
 COPY ./package.json .
 
 RUN npm install --production
+
+EXPOSE 8093
 
 CMD ["node", "index", "--color=16m"]
