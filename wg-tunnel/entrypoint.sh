@@ -24,7 +24,7 @@ if [ -n "${MISSING}" ]; then
     exit 1
 fi
 
-VPS_WG_PORT=${VPS_WG_PORT:-51820}
+VPS_WG_PORT=${VPS_WG_PORT:-51821}
 
 log "============================================"
 log " WireGuard Tunnel Client Starting"

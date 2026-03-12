@@ -42,7 +42,7 @@ services:
       - net.ipv4.conf.all.src_valid_mark=1
     environment:
       - VPS_IP=${VPS_IP:?VPS_IP must be set to your VPS public IP address}
-      - VPS_WG_PORT=${VPS_WG_PORT:-51820}
+      - VPS_WG_PORT=${VPS_WG_PORT:-51821}
       - WG_CLIENT_PRIVATE_KEY=${WG_CLIENT_PRIVATE_KEY:?WG_CLIENT_PRIVATE_KEY must be set — get it from the VPS setup output}
       - WG_SERVER_PUBLIC_KEY=${WG_SERVER_PUBLIC_KEY:?WG_SERVER_PUBLIC_KEY must be set — get it from the VPS setup output}
     networks:

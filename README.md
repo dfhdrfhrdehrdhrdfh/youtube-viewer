@@ -80,7 +80,7 @@ This setup routes **all Tor traffic** through a WireGuard tunnel to your VPS. To
 ### Prerequisites
 
 - A **VPS** with a public IP address and Docker installed
-- **UDP port 51820** open on the VPS firewall
+- **UDP port 51821** open on the VPS firewall
 - Docker and Docker Compose on your home server
 
 ### Step 1 — Deploy VPS Receiver (one command)
@@ -92,7 +92,7 @@ docker run -d --name yt-wg-server \
   --restart unless-stopped \
   --cap-add NET_ADMIN \
   --sysctl net.ipv4.ip_forward=1 \
-  -p 51820:51820/udp \
+  -p 51821:51821/udp \
   -v yt-wg-data:/config \
   ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer-vps:latest \
 && sleep 3 && docker logs yt-wg-server 2>&1
@@ -117,7 +117,7 @@ You'll see output like this:
 Copy these values to your .env on your home server:
 
 VPS_IP=107.150.20.218
-VPS_WG_PORT=51820
+VPS_WG_PORT=51821
 WG_SERVER_PUBLIC_KEY=aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcd=
 WG_CLIENT_PRIVATE_KEY=xYzAbCdEfGhIjKlMnOpQrStUvWxYz1234567890ef=
 
@@ -210,7 +210,7 @@ All settings are in the `.env` file:
 | `YOUTUBE_VIEWER_FORCE_DEBUG` | `false` | Enable debug logging |
 | `TUNNEL_ENABLED` | `false` | Route Tor traffic through WireGuard VPS tunnel |
 | `VPS_IP` | *(empty)* | Public IP of your VPS (tunnel mode only) |
-| `VPS_WG_PORT` | `51820` | WireGuard UDP port on VPS |
+| `VPS_WG_PORT` | `51821` | WireGuard UDP port on VPS |
 | `WG_SERVER_PUBLIC_KEY` | *(empty)* | Server public key from VPS setup |
 | `WG_CLIENT_PRIVATE_KEY` | *(empty)* | Client private key from VPS setup |
 
@@ -294,7 +294,7 @@ Both containers produce detailed logs so you can verify they are actually workin
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| wg-tunnel shows `Could not ping VPS server` | WireGuard tunnel not established | Check VPS_IP, keys, and that UDP 51820 is open on VPS firewall |
+| wg-tunnel shows `Could not ping VPS server` | WireGuard tunnel not established | Check VPS_IP, keys, and that UDP 51821 is open on VPS firewall |
 | wg-tunnel shows `External IP does not match VPS IP` | Tunnel routing issue | Verify VPS container is running: `docker logs yt-wg-server` |
 | Tor logs show `Uplink IP check` with local IP (not VPS) | Tunnel not routing | Check wg-tunnel container health, verify keys match VPS output |
 | YT viewer shows `SOCKS port → UNREACHABLE` | Tor container not healthy yet | Wait for Tor to bootstrap (can take 30-60s) |
@@ -352,7 +352,7 @@ docker run -d --name yt-wg-server \
   --restart unless-stopped \
   --cap-add NET_ADMIN \
   --sysctl net.ipv4.ip_forward=1 \
-  -p 51820:51820/udp \
+  -p 51821:51821/udp \
   -v yt-wg-data:/config \
   ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer-vps:latest \
 && sleep 3 && docker logs yt-wg-server 2>&1
