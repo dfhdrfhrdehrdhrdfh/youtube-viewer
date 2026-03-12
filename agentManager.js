@@ -15,14 +15,13 @@ const allocatedPorts = new Map(); // agentName → { start, count }
 function allocatePortBlock(count) {
   const usedRanges = Array.from(allocatedPorts.values());
   let candidate = START_PORT;
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  for (let attempt = 0; attempt < 1000; attempt += 1) {
     const end = candidate + count - 1;
     const conflict = usedRanges.some((r) => candidate <= r.start + r.count - 1 && end >= r.start);
-    if (!conflict) break;
+    if (!conflict) return candidate;
     candidate += count;
   }
-  return candidate;
+  throw new Error('Unable to allocate port block — too many agents');
 }
 
 function releasePortBlock(agentName) {

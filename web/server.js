@@ -6,14 +6,16 @@ const { logBuffer, logEmitter } = require('../utils/logger');
 
 const startTime = Date.now();
 
+// Cache the HTML file at startup
+const htmlContent = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+
 function startWebServer(port) {
   const app = express();
   app.use(express.json());
 
   // ── Serve single HTML page ──────────────────────────────────────────
   app.get('/', (req, res) => {
-    const htmlPath = path.join(__dirname, 'index.html');
-    res.type('html').send(fs.readFileSync(htmlPath, 'utf8'));
+    res.type('html').send(htmlContent);
   });
 
   // ── GET /api/status ─────────────────────────────────────────────────
