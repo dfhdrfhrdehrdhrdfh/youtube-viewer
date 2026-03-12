@@ -14,7 +14,9 @@ const getBrowserInstance = async (port) => {
     devtools: !IS_PROD,
     executablePath: IS_PROD ? '/usr/bin/chromium-browser' : undefined,
   });
-  const incognitoBrowserContext = browser.createIncognitoBrowserContext();
+  const incognitoBrowserContext = typeof browser.createBrowserContext === 'function'
+    ? browser.createBrowserContext()
+    : browser.createIncognitoBrowserContext();
   incognitoBrowserContext.close = browser.close;
   return incognitoBrowserContext;
 };

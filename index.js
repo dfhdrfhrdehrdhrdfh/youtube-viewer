@@ -50,8 +50,9 @@ async function main() {
       }, i);
     }
     await TorService.stopTor();
-  } catch {
-    logger.error('Failed to initialise. There should be an additional error message logged above.');
+    process.exit(0);
+  } catch (error) {
+    logger.error(`Failed to initialise: ${error.message || error}`);
   } finally {
     process.exit(1); // container restarts with non zero exit
   }

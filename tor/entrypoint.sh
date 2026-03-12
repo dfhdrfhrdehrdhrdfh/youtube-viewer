@@ -1,5 +1,6 @@
 #!/bin/sh
-set -e
+# NOTE: We intentionally do NOT use "set -e" here. The entrypoint must be
+# resilient to transient failures (e.g. gateway not yet reachable on restart).
 
 START_PORT="${TOR_START_PORT:-9052}"
 NUM_PORTS="${TOR_NUM_PORTS:-6}"
@@ -50,7 +51,18 @@ if [ "$TUNNEL_ENABLED" = "true" ]; then
   log "Resolving tunnel gateway '${TUNNEL_GATEWAY}' to an IP via Docker DNS..."
   # Docker embedded DNS (127.0.0.11) resolves container names on shared networks.
   # Use ping to extract the resolved IP — works with busybox on Alpine.
-  TUNNEL_IP=$(ping -c1 -W5 "$TUNNEL_GATEWAY" 2>/dev/null | head -1 | sed -n 's/.*(\([0-9.]*\)).*/\1/p')
+  # Retry because wg-tunnel may not be fully ready immediately after a restart.
+  TUNNEL_IP=""
+  for RESOLVE_ATTEMPT in 1 2 3 4 5; do
+    TUNNEL_IP=$(ping -c1 -W5 "$TUNNEL_GATEWAY" 2>/dev/null | head -1 | sed -n 's/.*(\([0-9.]*\)).*/\1/p')
+    if [ -n "$TUNNEL_IP" ]; then
+      break
+    fi
+    if [ "$RESOLVE_ATTEMPT" -lt 5 ]; then
+      log "  Attempt ${RESOLVE_ATTEMPT}/5: Could not resolve '${TUNNEL_GATEWAY}'. Retrying in 5s..."
+      sleep 5
+    fi
+  done
 
   if [ -z "$TUNNEL_IP" ]; then
     log "ERROR: Could not resolve '${TUNNEL_GATEWAY}' to an IP."
@@ -205,12 +217,14 @@ log "============================================"
     # Show current default route
     CURRENT_ROUTE=$(ip route show default 2>/dev/null || echo "unknown")
     log "  Default route  : ${CURRENT_ROUTE}"
-    # Show current uplink IP (VPS IP when tunnel active, local IP when direct)
-    check_uplink_ip
     log "────────────────────────────────────────"
     sleep 60
   done
 ) &
+
+# Clean up stale lock file that may remain after a hard stop/restart.
+# Tor refuses to start if /var/lib/tor/lock exists from a previous run.
+rm -f /var/lib/tor/lock
 
 # Pre-create the bootstrap log file so Tor (running as user tor) can write to it
 touch /tmp/tor_bootstrap.log

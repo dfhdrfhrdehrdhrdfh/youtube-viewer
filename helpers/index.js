@@ -17,7 +17,7 @@ const watchVideosInSequence = async (page, ipAddr, targetUrlsList, durationInSec
       await page.mouse.click(100, 100);
       const duration = (durationInSeconds + _random(-(durationInSeconds / 6), (durationInSeconds / 6), true));
       logger.info(`[port ${port}] Watching ${url} for ${duration.toFixed(0)}s...`);
-      await page.waitFor(duration * 1000);
+      await new Promise((resolve) => setTimeout(resolve, duration * 1000));
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       logger.info(`[port ${port}] Finished viewing ${url} after ${elapsed}s`);
       await logger.logCount(page, url, ipAddr, duration);
