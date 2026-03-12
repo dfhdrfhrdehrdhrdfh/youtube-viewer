@@ -48,10 +48,10 @@ services:
     networks:
       - ytnet
     healthcheck:
-      # 10.13.13.1 = VPS WireGuard IP (must match vps/entrypoint.sh)
-      test: ["CMD-SHELL", "ping -c1 -W3 10.13.13.1 >/dev/null 2>&1"]
+      # Verify both WireGuard peer reachability AND that external traffic exits via VPS
+      test: ["CMD-SHELL", "ping -c1 -W3 10.13.13.1 >/dev/null 2>&1 && EXT_IP=$(curl -s --max-time 5 https://api.ipify.org 2>/dev/null) && [ \"$EXT_IP\" = \"$VPS_IP\" ]"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 12
       start_period: 15s
 
@@ -70,6 +70,7 @@ services:
       # Default true — this file is the tunnel variant
       - TUNNEL_ENABLED=${TUNNEL_ENABLED:-true}
       - TUNNEL_GATEWAY=wg-tunnel
+      - VPS_IP=${VPS_IP}
     volumes:
       - tor-data:/var/lib/tor
     networks:
@@ -79,7 +80,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 60s
+      start_period: 90s
 
   ytviewer:
     image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer:${IMAGE_TAG:-latest}
@@ -102,6 +103,7 @@ services:
       - YOUTUBE_VIEWER_FORCE_DEBUG=${YOUTUBE_VIEWER_FORCE_DEBUG:-false}
       # Default true — this file is the tunnel variant
       - TUNNEL_ENABLED=${TUNNEL_ENABLED:-true}
+      - VPS_IP=${VPS_IP}
     networks:
       - ytnet
 

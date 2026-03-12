@@ -13,7 +13,16 @@ log() { echo "[tor-proxy] $(date '+%H:%M:%S') $1"; }
 check_uplink_ip() {
   UPLINK_IP=$(wget -qO- -T 10 https://api.ipify.org/ 2>/dev/null || wget -qO- -T 10 https://ifconfig.me/ip 2>/dev/null || echo "check-failed (no network connectivity)")
   log "Uplink IP check: ${UPLINK_IP}"
-  if [ "$TUNNEL_ENABLED" = "true" ]; then
+  if [ "$TUNNEL_ENABLED" = "true" ] && [ -n "$VPS_IP" ]; then
+    if [ "$UPLINK_IP" = "$VPS_IP" ]; then
+      log "  ✅ TUNNEL VERIFIED: Uplink IP ($UPLINK_IP) matches VPS IP"
+    elif echo "$UPLINK_IP" | grep -q "check-failed"; then
+      log "  ❌ TUNNEL CHECK FAILED: No internet connectivity through tunnel"
+    else
+      log "  ⚠ TUNNEL SUSPECT: Uplink IP ($UPLINK_IP) does NOT match VPS IP ($VPS_IP)"
+      log "    Traffic may not be routing through the tunnel!"
+    fi
+  elif [ "$TUNNEL_ENABLED" = "true" ]; then
     log "  ↳ If tunnel is working, this should be your VPS IP, NOT your local server IP."
   fi
 }
@@ -71,11 +80,32 @@ if [ "$TUNNEL_ENABLED" = "true" ]; then
   fi
 
   # End-to-end connectivity check — can we actually reach the internet through the tunnel?
+  # Use a retry loop because the tunnel may need time to stabilize after a restart.
   log "Testing end-to-end internet connectivity through tunnel..."
-  TUNNEL_EXT_IP=$(wget -qO- -T 15 https://api.ipify.org/ 2>/dev/null || wget -qO- -T 15 https://ifconfig.me/ip 2>/dev/null || echo "")
+  TUNNEL_EXT_IP=""
+  MAX_RETRIES=5
+  RETRY_INTERVAL=10
+  for ATTEMPT in $(seq 1 $MAX_RETRIES); do
+    TUNNEL_EXT_IP=$(wget -qO- -T 15 https://api.ipify.org/ 2>/dev/null || wget -qO- -T 15 https://ifconfig.me/ip 2>/dev/null || echo "")
+    if [ -n "$TUNNEL_EXT_IP" ]; then
+      break
+    fi
+    if [ "$ATTEMPT" -lt "$MAX_RETRIES" ]; then
+      log "  Attempt ${ATTEMPT}/${MAX_RETRIES}: Internet not reachable yet. Retrying in ${RETRY_INTERVAL}s..."
+      sleep "$RETRY_INTERVAL"
+    fi
+  done
+
   if [ -n "$TUNNEL_EXT_IP" ]; then
     log "SUCCESS: Internet is reachable through tunnel. External IP: ${TUNNEL_EXT_IP}"
-    log "  ↳ This should be your VPS public IP, NOT your local server IP."
+    if [ -n "$VPS_IP" ] && [ "$TUNNEL_EXT_IP" = "$VPS_IP" ]; then
+      log "  ✅ TUNNEL VERIFIED: External IP matches VPS IP ($VPS_IP)"
+    elif [ -n "$VPS_IP" ]; then
+      log "  ⚠ External IP ($TUNNEL_EXT_IP) does NOT match VPS IP ($VPS_IP)"
+      log "    The tunnel may not be routing correctly."
+    else
+      log "  ↳ This should be your VPS public IP, NOT your local server IP."
+    fi
   else
     log "WARNING: Internet is NOT reachable through the tunnel."
     log "  Tor will likely fail to bootstrap. Troubleshooting:"
@@ -93,7 +123,10 @@ if [ "$TUNNEL_ENABLED" = "true" ]; then
   log "  Gateway container: ${TUNNEL_GATEWAY}"
   log "  Gateway IP       : ${TUNNEL_IP}"
   if [ -n "$TUNNEL_EXT_IP" ]; then
-    log "  External IP      : ${TUNNEL_EXT_IP} (should be VPS IP)"
+    log "  External IP      : ${TUNNEL_EXT_IP}"
+    if [ -n "$VPS_IP" ]; then
+      log "  Expected VPS IP  : ${VPS_IP}"
+    fi
   fi
   log "  Route            : tor → wg-tunnel → WireGuard → VPS → Internet"
   log "============================================"

@@ -6,7 +6,7 @@ const { watchVideosInSequence } = require('../helpers');
 const { logger } = require('../utils');
 const {
   VIEW_ACTION_COUNT, IP_GETTER_URL, PAGE_DEFAULT_TIMEOUT, TOR_ENABLED, TOR_HOST,
-  TUNNEL_ENABLED,
+  TUNNEL_ENABLED, VPS_IP,
 } = require('../utils/constants');
 const { getContainerDirectIp } = require('./tor.service');
 
@@ -46,13 +46,14 @@ const viewVideosInBatch = async ({ targetUrls, durationInSeconds, port }) => {
 
     if (TOR_ENABLED) {
       if (TUNNEL_ENABLED) {
-        logger.success(`[port ${port}] Tor exit IP (via WireGuard → VPS tunnel): ${ipAddr}`);
-        if (directIpKnown && ipAddr !== directIp) {
-          logger.success(`[port ${port}] ✓ Routing OK — exit IP ${ipAddr} differs from container uplink IP ${directIp}`);
-        } else if (directIpKnown && ipAddr === directIp) {
-          logger.warn(`[port ${port}] ⚠ Routing SUSPECT — exit IP ${ipAddr} matches container direct IP (Tor may not be routing through tunnel)`);
-        } else {
-          logger.info(`[port ${port}] Tunnel ACTIVE — exit IP should differ from your local server IP.`);
+        logger.success(`[port ${port}] Tor exit IP: ${ipAddr} (via Tor network, tunneled through VPS)`);
+        logger.info(`[port ${port}] Note: Tor exit IP is a random Tor relay, NOT the VPS IP. This is expected.`);
+        if (VPS_IP) {
+          logger.info(`[port ${port}] To verify tunnel: check tor-proxy logs — uplink IP should be ${VPS_IP}`);
+        }
+        // Only flag a REAL problem: exit IP matching the container's direct IP means Tor is not proxying
+        if (directIpKnown && ipAddr === directIp) {
+          logger.error(`[port ${port}] ❌ CRITICAL: Exit IP ${ipAddr} matches container direct IP — Tor is NOT proxying traffic!`);
         }
       } else {
         logger.success(`[port ${port}] Tor exit IP: ${ipAddr}`);

@@ -5,7 +5,7 @@ const { execWithPromise } = require('../utils/childProcessWrapper');
 
 const { logger } = require('../utils');
 const {
-  IS_PROD, TOR_ENABLED, TOR_HOST, TUNNEL_ENABLED, IP_GETTER_URL,
+  IS_PROD, TOR_ENABLED, TOR_HOST, TUNNEL_ENABLED, VPS_IP, IP_GETTER_URL,
 } = require('../utils/constants');
 
 // When TOR_HOST is not localhost, Tor is running in a separate container
@@ -110,8 +110,13 @@ const verifyTorConnectivity = async (startPort, count) => {
   _containerDirectIp = uplinkIp;
   logger.info(`  Container direct IP : ${uplinkIp}`);
   if (TUNNEL_ENABLED) {
-    logger.info(`  ↳ Tunnel ACTIVE — each browser's Tor exit IP should differ from ${uplinkIp}`);
-    logger.info('    (the Tor container exits via the VPS, but the Tor exit node will be a random relay)');
+    logger.info('  ↳ Note: This is the ytviewer container\'s own IP (NOT tunneled).');
+    logger.info('    The ytviewer does not route through the WireGuard tunnel.');
+    if (VPS_IP) {
+      logger.info(`    To verify the tunnel: check tor-proxy container logs — uplink IP should be ${VPS_IP}`);
+    } else {
+      logger.info('    To verify the tunnel: check tor-proxy container logs — uplink IP should be the VPS IP.');
+    }
   } else {
     logger.info(`  ↳ Each browser's Tor exit IP should differ from ${uplinkIp} — if they match, Tor is not routing`);
   }
