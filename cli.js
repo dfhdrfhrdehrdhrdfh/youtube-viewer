@@ -1,6 +1,6 @@
 const net = require('net');
 
-const SOCKET_PATH = '/tmp/ytviewer.sock';
+const SOCKET_PATH = '/tmp/npc-viewers.sock';
 
 const args = process.argv.slice(2);
 const action = args[0];

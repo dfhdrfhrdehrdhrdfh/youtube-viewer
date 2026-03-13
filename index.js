@@ -9,7 +9,7 @@ const {
   TUNNEL_ENABLED,
 } = require('./utils/constants');
 
-const SOCKET_PATH = '/tmp/ytviewer.sock';
+const SOCKET_PATH = '/tmp/npc-viewers.sock';
 
 // ── IPC server for CLI commands (docker exec node cli.js ...) ────────────
 function startIpcServer() {
