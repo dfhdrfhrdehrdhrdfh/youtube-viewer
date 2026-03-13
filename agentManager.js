@@ -9,23 +9,12 @@ const agents = new Map();
 let nextAgentId = 1;
 const MAX_COMPLETED_AGENTS = 50;
 
-// ── Port allocation registry ────────────────────────────────────────────
-const allocatedPorts = new Map(); // agentName → { start, count }
-
-function allocatePortBlock(count) {
-  const usedRanges = Array.from(allocatedPorts.values());
-  let candidate = START_PORT;
-  for (let attempt = 0; attempt < 1000; attempt += 1) {
-    const end = candidate + count - 1;
-    const conflict = usedRanges.some((r) => candidate <= r.start + r.count - 1 && end >= r.start);
-    if (!conflict) return candidate;
-    candidate += count;
-  }
-  throw new Error('Unable to allocate port block — too many agents');
-}
-
-function releasePortBlock(agentName) {
-  allocatedPorts.delete(agentName);
+// ── Port allocation ─────────────────────────────────────────────────────
+// All agents share the same Tor SOCKS port range (START_PORT … START_PORT +
+// BATCH_COUNT - 1).  Tor supports multiplexing on a single SOCKS port, so
+// there is no need for exclusive per-agent port blocks.
+function allocatePortBlock() {
+  return START_PORT;
 }
 
 // ── Evict oldest completed/failed agents when cap exceeded ──────────────
@@ -89,9 +78,9 @@ function startAgent(optionalConfig) {
   const agentName = `agent${nextAgentId}`;
   nextAgentId += 1;
 
-  const batchCount = (optionalConfig && optionalConfig.batchCount) || BATCH_COUNT;
-  const portStart = allocatePortBlock(batchCount);
-  allocatedPorts.set(agentName, { start: portStart, count: batchCount });
+  const requestedBatch = (optionalConfig && optionalConfig.batchCount) || BATCH_COUNT;
+  const batchCount = Math.min(requestedBatch, BATCH_COUNT);
+  const portStart = allocatePortBlock();
 
   const config = {
     youtubeUrl: (optionalConfig && optionalConfig.youtubeUrl) || null,
@@ -119,7 +108,6 @@ function startAgent(optionalConfig) {
       logger.error(`[${agentName}] Failed: ${err.message || err}`);
     })
     .finally(() => {
-      releasePortBlock(agentName);
       evictOldAgents();
     });
 
