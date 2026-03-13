@@ -38,16 +38,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata for youtube-viewer image
+      - name: Extract metadata for npc-viewers image
         id: meta-viewer
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/npc-viewers
           tags: |
             type=sha
             type=raw,value=${{ steps.branch-tag.outputs.tag }}
 
-      - name: Build and push youtube-viewer image
+      - name: Build and push npc-viewers image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -59,7 +59,7 @@ jobs:
         id: meta-tor
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/youtube-viewer-tor
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/npc-viewers-tor
           tags: |
             type=sha
             type=raw,value=${{ steps.branch-tag.outputs.tag }}
@@ -76,7 +76,7 @@ jobs:
         id: meta-wg
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/youtube-viewer-wg
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/npc-viewers-wg
           tags: |
             type=sha
             type=raw,value=${{ steps.branch-tag.outputs.tag }}
@@ -93,7 +93,7 @@ jobs:
         id: meta-vps
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/youtube-viewer-vps
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/npc-viewers-vps
           tags: |
             type=sha
             type=raw,value=${{ steps.branch-tag.outputs.tag }}

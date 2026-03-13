@@ -1,5 +1,5 @@
 const IS_PROD = (process.env.NODE_ENV === 'production');
-const SHOULD_FORCE_DEBUG_LOGS = (process.env.NPC_VIEWERS_FORCE_DEBUG || process.env.YOUTUBE_VIEWER_FORCE_DEBUG) === 'true';
+const SHOULD_FORCE_DEBUG_LOGS = process.env.NPC_VIEWERS_FORCE_DEBUG === 'true';
 const TOR_ENABLED = process.env.TOR_ENABLED !== 'false';
 const TOR_HOST = process.env.TOR_HOST || '127.0.0.1';
 const IP_GETTER_URL = 'https://api.ipify.org/';

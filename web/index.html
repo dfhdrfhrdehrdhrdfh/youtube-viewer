@@ -15,7 +15,7 @@
   --mono:'JetBrains Mono','Fira Code','Cascadia Code',monospace;
   --font:'Inter',system-ui,-apple-system,sans-serif;
 }
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.5;overflow:hidden}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.5;overflow:hidden;zoom:0.95}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 
@@ -222,9 +222,10 @@ a:hover{text-decoration:underline}
           <div class="form-error" id="nameError"></div>
         </div>
         <div class="form-group">
-          <label class="form-label">YouTube URL</label>
-          <input type="text" id="urlInput" class="form-input" placeholder="https://www.youtube.com/watch?v=...">
+          <label class="form-label">Video URL</label>
+          <input type="text" id="urlInput" class="form-input" placeholder="https://... (leave blank to use env default)">
           <div class="form-error" id="urlError"></div>
+          <div class="form-help">Optional — if left empty, the agent uses the VIDEO_URL environment variable.</div>
         </div>
         <div class="form-grid">
           <div>
@@ -260,8 +261,13 @@ a:hover{text-decoration:underline}
 
     <!-- Agents list -->
     <div class="card">
-      <div class="card-header">Agents <span class="card-title-badge" id="agentCountBadge">0</span></div>
-      <div class="card-body" id="agentList">
+      <div class="card-header">Agents <span class="card-title-badge" id="agentCountBadge">0</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="btn btn-sm btn-ghost" id="sortNewestBtn" onclick="setSortOrder('newest')" style="opacity:1">Newest</button>
+          <button class="btn btn-sm btn-ghost" id="sortOldestBtn" onclick="setSortOrder('oldest')" style="opacity:0.5">Oldest</button>
+        </div>
+      </div>
+      <div class="card-body" id="agentList" style="max-height:50vh;overflow-y:auto">
         <div class="empty-state" id="emptyState">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
           <div>No agents yet &#8212; create one above.</div>
@@ -310,6 +316,14 @@ a:hover{text-decoration:underline}
   var reconnectTimer = null;
   var confirmState = {};
   var intervals = [];
+  var sortOrder = 'newest';
+
+  window.setSortOrder = function(order) {
+    sortOrder = order;
+    document.getElementById('sortNewestBtn').style.opacity = order === 'newest' ? '1' : '0.5';
+    document.getElementById('sortOldestBtn').style.opacity = order === 'oldest' ? '1' : '0.5';
+    renderAgents();
+  };
 
   // ── Helpers ──────────────────────────────────────────────────────
   function formatUptime(seconds) {
@@ -441,17 +455,19 @@ a:hover{text-decoration:underline}
     html += '<div class="conn-route">' + escapeHtml(cs.routingPath) + '</div>';
     html += '</div>';
 
-    // Container IP
-    var ipFailed = cs.containerIp && cs.containerIp.indexOf('check-failed') !== -1;
-    var ipColor = ipFailed ? 'amber' : 'indigo';
-    html += '<div class="conn-card ' + ipColor + '">';
-    html += '<div class="conn-label">Container Uplink IP</div>';
-    if (ipFailed) {
-      html += '<div class="conn-value" style="color:var(--warn)">' + escapeHtml(cs.containerIp) + '</div>';
-      html += '<div class="conn-sub" style="color:var(--warn)">\u26A0 Uplink IP could not be determined</div>';
-    } else {
-      html += '<div class="conn-value" style="font-family:var(--mono)">' + escapeHtml(cs.containerIp || 'N/A') + '</div>';
-    }
+    // System Stats
+    html += '<div class="conn-card indigo">';
+    html += '<div class="conn-label">System Stats</div>';
+    var upStr = typeof cs.uptime === 'number' ? formatUptime(cs.uptime) : 'N/A';
+    var memStr = cs.memory && typeof cs.memory.rss === 'number' ? cs.memory.rss + ' MB' : 'N/A';
+    var cpuStr = typeof cs.cpuUsage === 'number' ? cs.cpuUsage + '%' : 'N/A';
+    var agentStr = cs.agentStats ? cs.agentStats.active + ' / ' + cs.agentStats.total : 'N/A';
+    html += '<div class="conn-value" style="font-size:12px;line-height:1.7">';
+    html += 'Uptime: <span style="font-family:var(--mono)">' + escapeHtml(upStr) + '</span><br>';
+    html += 'Memory (RSS): <span style="font-family:var(--mono)">' + escapeHtml(memStr) + '</span><br>';
+    html += 'CPU: <span style="font-family:var(--mono)">' + escapeHtml(cpuStr) + '</span><br>';
+    html += 'Agents: <span style="font-family:var(--mono)">' + escapeHtml(agentStr) + '</span>';
+    html += '</div>';
     html += '</div>';
 
     // SOCKS Ports
@@ -484,17 +500,12 @@ a:hover{text-decoration:underline}
     // Name validation
     if (!validateNameInput()) return;
 
-    // URL Validation
+    // URL Validation (optional — if provided, must be https)
     urlError.textContent = '';
     urlInput.classList.remove('error');
-    if (!url) {
+    if (url && !/^https:\/\//.test(url)) {
       urlInput.classList.add('error');
-      urlError.textContent = 'YouTube URL is required';
-      return;
-    }
-    if (!/^https:\/\//.test(url) || !(url.indexOf('youtube.com/watch') !== -1 || url.indexOf('youtube.com/shorts/') !== -1 || url.indexOf('youtube.com/live/') !== -1)) {
-      urlInput.classList.add('error');
-      urlError.textContent = 'Enter a valid YouTube URL (watch, shorts, or live)';
+      urlError.textContent = 'URL must start with https://';
       return;
     }
 
@@ -516,13 +527,13 @@ a:hover{text-decoration:underline}
 
     try {
       var bodyObj = {
-        videoUrl: url,
         batchCount: parseInt(document.getElementById('batchCount').value, 10),
         totalCount: parseInt(document.getElementById('totalCount').value, 10),
         viewDuration: parseInt(document.getElementById('viewDuration').value, 10),
         viewActionCount: parseInt(document.getElementById('viewActionCount').value, 10),
         pageDefaultTimeout: parseInt(document.getElementById('pageDefaultTimeout').value, 10),
       };
+      if (url) bodyObj.videoUrl = url;
       if (name) bodyObj.name = name;
 
       var res = await fetch('/api/agents', {
@@ -568,7 +579,7 @@ a:hover{text-decoration:underline}
       var res = await fetch('/api/agents/' + encodeURIComponent(name) + '/stop', {method:'POST'});
       var data = await res.json();
       if (data.success) {
-        showToast('Agent ' + name + ' will stop after current round', 'info');
+        showToast('Agent ' + name + ' is being stopped', 'info');
       } else {
         showToast(data.message || 'Failed to stop agent', 'error');
       }
@@ -606,8 +617,14 @@ a:hover{text-decoration:underline}
     }
 
     var html = '';
-    for (var i = 0; i < agents.length; i++) {
-      var a = agents[i];
+    var sorted = agents.slice();
+    sorted.sort(function(a, b) {
+      var ta = new Date(a.startTime).getTime() || 0;
+      var tb = new Date(b.startTime).getTime() || 0;
+      return sortOrder === 'newest' ? tb - ta : ta - tb;
+    });
+    for (var i = 0; i < sorted.length; i++) {
+      var a = sorted[i];
       var isRunning = a.status === 'running';
       var isStopping = a.status === 'stopping';
       var isFinished = a.status === 'stopped' || a.status === 'completed' || a.status === 'failed';
@@ -856,7 +873,8 @@ a:hover{text-decoration:underline}
   var statusInterval = setInterval(fetchStatus, 5000);
   var agentInterval = setInterval(fetchAgents, 3000);
   var timerInterval = setInterval(updateTimers, 1000);
-  intervals.push(statusInterval, agentInterval, timerInterval);
+  var connInterval = setInterval(fetchConnectionStatus, 10000);
+  intervals.push(statusInterval, agentInterval, timerInterval, connInterval);
 
   window.addEventListener('beforeunload', function() {
     for (var i = 0; i < intervals.length; i++) clearInterval(intervals[i]);

@@ -13,9 +13,6 @@ let nextAgentId = 1;
 const MAX_COMPLETED_AGENTS = 50;
 
 // ── Port allocation ─────────────────────────────────────────────────────
-// All agents share the same Tor SOCKS port range (START_PORT … START_PORT +
-// BATCH_COUNT - 1).  Tor supports multiplexing on a single SOCKS port, so
-// there is no need for exclusive per-agent port blocks.
 function allocatePortBlock() {
   return START_PORT;
 }
@@ -30,6 +27,23 @@ function evictOldAgents() {
     const old = finished.shift();
     agents.delete(old.name);
   }
+}
+
+// ── Kill specific browser PIDs tracked by an agent ──────────────────────
+function killBrowserPids(pids) {
+  let killed = 0;
+  for (const pid of pids) {
+    try {
+      process.kill(pid, 'SIGKILL');
+      killed += 1;
+    } catch (err) {
+      if (err.code !== 'ESRCH') {
+        logger.debug(`Could not kill browser PID ${pid}: ${err.message}`);
+      }
+    }
+  }
+  pids.clear();
+  return killed;
 }
 
 // ── Resource cleanup when all agents are idle ───────────────────────────
@@ -72,19 +86,30 @@ function cleanupIfIdle() {
   logger.info(`Memory after cleanup: RSS ${Math.round(mem.rss / 1024 / 1024)}MB, Heap ${Math.round(mem.heapUsed / 1024 / 1024)}/${Math.round(mem.heapTotal / 1024 / 1024)}MB`);
 }
 
-function getTargetUrls(videoUrl) {
-  if (videoUrl) return [videoUrl];
-  if (process.env.VIDEO_URLS || process.env.YOUTUBE_URLS) {
-    const urls = (process.env.VIDEO_URLS || process.env.YOUTUBE_URLS).split(',').map((u) => u.trim()).filter(Boolean);
-    if (urls.length > 0) return urls;
-  }
-  return urlReader('urls.txt');
+// ── Periodic orphan process cleanup ─────────────────────────────────────
+function startPeriodicCleanup() {
+  setInterval(() => {
+    cleanupIfIdle();
+  }, 60000);
 }
 
-// ── Fetch video title from YouTube oEmbed ───────────────────────────────
-function fetchVideoTitle(youtubeUrl) {
+function getTargetUrls(videoUrl) {
+  if (videoUrl) return [videoUrl];
+  if (process.env.VIDEO_URLS) {
+    const urls = process.env.VIDEO_URLS.split(',').map((u) => u.trim()).filter(Boolean);
+    if (urls.length > 0) return urls;
+  }
+  try {
+    return urlReader('urls.txt');
+  } catch (_) {
+    return [];
+  }
+}
+
+// ── Fetch video title from oEmbed ───────────────────────────────────────
+function fetchVideoTitle(videoUrl) {
   return new Promise((resolve) => {
-    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(youtubeUrl)}&format=json`;
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl)}&format=json`;
     const req = https.get(oembedUrl, { timeout: 5000 }, (res) => {
       let data = '';
       res.on('data', (chunk) => {
@@ -148,6 +173,9 @@ logEmitter.on('log', (entry) => {
 async function runAgentTask(agentName, abortSignal, config) {
   const agent = agents.get(agentName);
   const targetUrls = getTargetUrls(config.videoUrl);
+  if (targetUrls.length === 0) {
+    throw new Error('No target URLs configured. Set VIDEO_URLS in .env or provide a URL when creating the agent.');
+  }
   const totalRounds = Math.ceil(config.totalCount / config.batchCount);
 
   if (agent) {
@@ -179,6 +207,7 @@ async function runAgentTask(agentName, abortSignal, config) {
       startPort: config.startPort,
       viewActionCount: config.viewActionCount,
       pageDefaultTimeout: config.pageDefaultTimeout,
+      browserPids: agent ? agent.browserPids : undefined,
     }, i);
 
     // Clear view timer between rounds
@@ -239,6 +268,7 @@ function startAgent(optionalConfig) {
     abortSignal,
     promise: null,
     config,
+    browserPids: new Set(),
     currentRound: 0,
     totalRounds: Math.ceil(config.totalCount / config.batchCount),
     completedViews: 0,
@@ -302,13 +332,34 @@ function stopAgent(agentName) {
   if (!agent) {
     return { success: false, message: `Agent '${agentName}' not found` };
   }
-  if (agent.status !== 'running') {
+  if (agent.status !== 'running' && agent.status !== 'stopping') {
     return { success: false, message: `Agent '${agentName}' is not running (status: ${agent.status})` };
   }
+
+  // Signal the abort flag
   agent.abortSignal.aborted = true;
   agent.status = 'stopping';
-  logger.info(`[${agentName}] Stop requested — will stop after current round`);
-  return { success: true, message: `Agent '${agentName}' will stop after current round completes` };
+
+  // Force-kill all active browser processes immediately
+  if (agent.browserPids && agent.browserPids.size > 0) {
+    const killed = killBrowserPids(agent.browserPids);
+    logger.info(`[${agentName}] Force-killed ${killed} browser process(es)`);
+  }
+
+  // Finalize the agent state after a brief delay for promises to settle
+  setTimeout(() => {
+    if (agent.status === 'stopping') {
+      agent.status = 'stopped';
+      agent.endTime = new Date();
+      agent.currentViewDuration = null;
+      agent.currentViewStartTime = null;
+      logger.info(`[${agentName}] Stopped immediately`);
+      cleanupIfIdle();
+    }
+  }, 2000);
+
+  logger.info(`[${agentName}] Stop requested — force-terminating browsers`);
+  return { success: true, message: `Agent '${agentName}' is being stopped immediately` };
 }
 
 function removeAgent(agentName) {
@@ -362,4 +413,4 @@ function getAgent(agentName) {
   return agents.get(agentName) || null;
 }
 
-module.exports = { startAgent, stopAgent, removeAgent, listAgents, getAgent };
+module.exports = { startAgent, stopAgent, removeAgent, listAgents, getAgent, startPeriodicCleanup };

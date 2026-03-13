@@ -22,7 +22,7 @@ const handlePageCrash = (page) => (error) => {
 };
 
 const viewVideosInBatch = async (options) => {
-  const { targetUrls, durationInSeconds, port } = options;
+  const { targetUrls, durationInSeconds, port, browserPids } = options;
   const actionCount = options.viewActionCount || VIEW_ACTION_COUNT;
   const pageTimeout = options.pageDefaultTimeout || PAGE_DEFAULT_TIMEOUT;
   let browser;
@@ -30,7 +30,7 @@ const viewVideosInBatch = async (options) => {
     const proxyUrl = `socks5://${TOR_HOST}:${port}`;
     const tunnelLabel = TUNNEL_ENABLED ? ' | tunnel: WireGuard → VPS' : '';
     logger.info(`[port ${port}] Launching browser with proxy: ${TOR_ENABLED ? proxyUrl : 'DIRECT (Tor disabled)'}${tunnelLabel}`);
-    browser = await puppeteer.getBrowserInstance(port);
+    browser = await puppeteer.getBrowserInstance(port, browserPids);
     const page = await browser.newPage();
     await page.setBypassCSP(true);
     page.setDefaultTimeout(pageTimeout * 1000);

@@ -1,9 +1,9 @@
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const express = require('express');
 const agentManager = require('../agentManager');
 const { logBuffer, logEmitter } = require('../utils/logger');
-const { getContainerDirectIp } = require('../services/tor.service');
 const {
   TOR_ENABLED, TOR_HOST, START_PORT, BATCH_COUNT,
   TUNNEL_ENABLED, VPS_IP, VPS_WG_PORT,
@@ -37,8 +37,18 @@ function startWebServer(port) {
   // ── GET /api/connection-status ──────────────────────────────────────
   app.get('/api/connection-status', (req, res) => {
     const routingPath = TUNNEL_ENABLED ?
-      'ytviewer → tor → WireGuard → VPS → Internet' :
-      'ytviewer → tor → Internet';
+      'npc-viewers → tor → WireGuard → VPS → Internet' :
+      'npc-viewers → tor → Internet';
+
+    const agents = agentManager.listAgents();
+    const mem = process.memoryUsage();
+    const cpus = os.cpus();
+    const cpuUsage = cpus.length > 0 ?
+      Math.round(cpus.reduce((acc, c) => {
+        const total = Object.values(c.times).reduce((a, b) => a + b, 0);
+        return acc + ((total - c.times.idle) / total) * 100;
+      }, 0) / cpus.length) : 0;
+
     res.json({
       torEnabled: TOR_ENABLED,
       torHost: TOR_HOST,
@@ -47,8 +57,21 @@ function startWebServer(port) {
       tunnelEnabled: TUNNEL_ENABLED,
       vpsIp: VPS_IP || null,
       vpsWgPort: VPS_WG_PORT,
-      containerIp: getContainerDirectIp() || 'Pending — not yet fetched',
       routingPath,
+      uptime: Math.floor((Date.now() - startTime) / 1000),
+      agentStats: {
+        active: agents.filter((a) => a.status === 'running' || a.status === 'stopping').length,
+        completed: agents.filter((a) => a.status === 'completed').length,
+        failed: agents.filter((a) => a.status === 'failed').length,
+        stopped: agents.filter((a) => a.status === 'stopped').length,
+        total: agents.length,
+      },
+      memory: {
+        rss: Math.round(mem.rss / 1024 / 1024),
+        heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+        heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
+      },
+      cpuUsage,
     });
   });
 
@@ -63,7 +86,7 @@ function startWebServer(port) {
       const body = req.body || {};
       const config = {};
       if (body.name) config.name = String(body.name);
-      if (body.videoUrl || body.youtubeUrl) config.videoUrl = String(body.videoUrl || body.youtubeUrl);
+      if (body.videoUrl) config.videoUrl = String(body.videoUrl);
       if (body.batchCount) config.batchCount = parseInt(body.batchCount, 10);
       if (body.totalCount) config.totalCount = parseInt(body.totalCount, 10);
       if (body.viewDuration) config.viewDuration = parseInt(body.viewDuration, 10);

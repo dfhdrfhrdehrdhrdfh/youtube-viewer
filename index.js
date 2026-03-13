@@ -73,24 +73,32 @@ async function main() {
     logger.info('─────────────────────────────────────────────');
     logger.info(`VPS tunnel    : ${TUNNEL_ENABLED ? 'ENABLED (WireGuard)' : 'DISABLED'}`);
     if (TUNNEL_ENABLED) {
-      logger.info('Traffic route   : ytviewer → tor → WireGuard → VPS → Internet');
+      logger.info('Traffic route   : npc-viewers → tor → WireGuard → VPS → Internet');
     } else {
-      logger.info('Traffic route   : ytviewer → tor → Internet (direct)');
+      logger.info('Traffic route   : npc-viewers → tor → Internet (direct)');
     }
     logger.info('=============================================');
-
-    // ── Tor setup (once) ────────────────────────────────────────────
-    await TorService.writeTorConfig(START_PORT, BATCH_COUNT);
 
     // ── IPC server for CLI management ───────────────────────────────
     startIpcServer();
 
-    // ── Web server ──────────────────────────────────────────────────
+    // ── Web server (start early so healthcheck passes) ──────────────
     startWebServer(8093);
 
-    // ── Auto-start first agent ──────────────────────────────────────
-    logger.info('Auto-starting first agent...');
-    agentManager.startAgent();
+    // ── Periodic orphan process cleanup ─────────────────────────────
+    agentManager.startPeriodicCleanup();
+
+    // ── Tor setup (once) ────────────────────────────────────────────
+    await TorService.writeTorConfig(START_PORT, BATCH_COUNT);
+
+    // ── Auto-start first agent only if VIDEO_URLS is configured ─────
+    const videoUrls = (process.env.VIDEO_URLS || '').trim();
+    if (videoUrls) {
+      logger.info('VIDEO_URLS configured — auto-starting first agent...');
+      agentManager.startAgent();
+    } else {
+      logger.info('No VIDEO_URLS configured — starting in idle mode. Create agents via the web UI.');
+    }
 
     logger.info('─────────────────────────────────────────────');
     logger.info('Container will keep running. Manage agents with:');
