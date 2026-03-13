@@ -88,6 +88,9 @@ const tryViewBatch = async ({ targetUrls, durationInSeconds, port }) => {
     const targetUrlsForAction = _take(_shuffle(targetUrls), VIEW_ACTION_COUNT);
     await watchVideosInSequence(page, ipAddr, targetUrlsForAction, durationInSeconds, port);
     await page.close();
+  } catch (error) {
+    logger.debug(`[port ${port}] tryViewBatch error: ${error.message || error}`);
+    throw error;
   } finally {
     if (browser) {
       try {
