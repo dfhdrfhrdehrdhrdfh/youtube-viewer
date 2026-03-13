@@ -1,8 +1,8 @@
-# YouTube Viewer
+# NPC Viewers
 
-Containerized YouTube viewer using [Puppeteer](https://pptr.dev/), [Tor](https://www.torproject.org/) rotating proxies, and [Docker](https://www.docker.com/). Based on [soumyadityac/youtube-viewer](https://github.com/soumyadityac/youtube-viewer).
+Containerized video viewer using [Puppeteer](https://pptr.dev/), [Tor](https://www.torproject.org/) rotating proxies, and [Docker](https://www.docker.com/). Based on [soumyadityac/youtube-viewer](https://github.com/soumyadityac/youtube-viewer).
 
-> **Disclaimer:** For educational purposes only. Do not use to artificially inflate view counts or violate YouTube's Terms of Service.
+> **Disclaimer:** For educational purposes only. Do not use to artificially inflate view counts or violate any platform's Terms of Service.
 
 ## Features
 
@@ -18,26 +18,26 @@ Containerized YouTube viewer using [Puppeteer](https://pptr.dev/), [Tor](https:/
 
 ```bash
 cp .env.example .env
-nano .env                  # set YOUTUBE_URLS
+nano .env                  # set VIDEO_URLS
 docker compose up -d
 docker compose logs -f     # verify
 ```
 
-Or with **Arcane**: paste [`docker-compose.yml`](docker-compose.yml) + [`.env.example`](.env.example), set `YOUTUBE_URLS`, deploy.
+Or with **Arcane**: paste [`docker-compose.yml`](docker-compose.yml) + [`.env.example`](.env.example), set `VIDEO_URLS`, deploy.
 
 ### Option B — WireGuard VPS Tunnel
 
 **1. Deploy receiver on your VPS** (requires UDP port 51821 open):
 
 ```bash
-docker run -d --name yt-wg-server \
+docker run -d --name npc-wg-server \
   --restart unless-stopped \
   --cap-add NET_ADMIN \
   --sysctl net.ipv4.ip_forward=1 \
   -p 51821:51821/udp \
-  -v yt-wg-data:/config \
+  -v npc-wg-data:/config \
   ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer-vps:latest \
-&& sleep 3 && docker logs yt-wg-server 2>&1
+&& sleep 3 && docker logs npc-wg-server 2>&1
 ```
 
 The output will display `VPS_IP`, `WG_SERVER_PUBLIC_KEY`, and `WG_CLIENT_PRIVATE_KEY`. Copy these values.
@@ -46,7 +46,7 @@ The output will display `VPS_IP`, `WG_SERVER_PUBLIC_KEY`, and `WG_CLIENT_PRIVATE
 
 ```bash
 cp .env.example .env
-nano .env                  # set YOUTUBE_URLS, TUNNEL_ENABLED=true, VPS_IP, keys
+nano .env                  # set VIDEO_URLS, TUNNEL_ENABLED=true, VPS_IP, keys
 docker compose -f docker-compose.tunnel.yml up -d
 ```
 
@@ -58,7 +58,7 @@ All settings are in `.env` (see [`.env.example`](.env.example) for defaults and 
 
 | Variable | Default | Description |
 |---|---|---|
-| `YOUTUBE_URLS` | *(required)* | Comma-separated YouTube video URLs |
+| `VIDEO_URLS` | *(required)* | Comma-separated video URLs |
 | `TOR_ENABLED` | `true` | Enable Tor proxy |
 | `BATCH_COUNT` | `6` | Parallel browser instances |
 | `TOTAL_COUNT` | `96` | Total view actions |
@@ -75,9 +75,9 @@ See `.env.example` for additional settings (`TOR_START_PORT`, `VIEW_ACTION_COUNT
 Check logs for each container:
 
 ```bash
-docker compose logs -f tor        # Tor bootstrap + SOCKS connections
-docker compose logs -f ytviewer   # Viewer status + routing verification
-docker compose logs -f wg-tunnel  # Tunnel connectivity (tunnel mode only)
+docker compose logs -f tor           # Tor bootstrap + SOCKS connections
+docker compose logs -f npc-viewers   # Viewer status + routing verification
+docker compose logs -f wg-tunnel     # Tunnel connectivity (tunnel mode only)
 ```
 
 **Common issues:**
@@ -93,17 +93,17 @@ docker compose logs -f wg-tunnel  # Tunnel connectivity (tunnel mode only)
 
 ```bash
 # View keys again
-docker logs yt-wg-server
+docker logs npc-wg-server
 
 # Restart
-docker restart yt-wg-server
+docker restart npc-wg-server
 
 # Generate new keys
-docker rm -f yt-wg-server && docker volume rm yt-wg-data
+docker rm -f npc-wg-server && docker volume rm npc-wg-data
 # Re-run the deploy command
 
 # Full cleanup
-docker rm -f yt-wg-server 2>/dev/null; docker volume rm yt-wg-data 2>/dev/null; \
+docker rm -f npc-wg-server 2>/dev/null; docker volume rm npc-wg-data 2>/dev/null; \
   docker rmi ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer-vps:latest 2>/dev/null
 ```
 

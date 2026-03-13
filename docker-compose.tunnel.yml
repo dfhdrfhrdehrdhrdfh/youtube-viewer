@@ -1,5 +1,5 @@
 # =============================================================================
-# YouTube Viewer — Docker Compose WITH WireGuard VPS Tunnel
+# NPC Viewers — Docker Compose WITH WireGuard VPS Tunnel
 # =============================================================================
 # This is a COMPLETE standalone docker-compose file. It includes everything
 # from docker-compose.yml PLUS the WireGuard tunnel configuration.
@@ -10,7 +10,7 @@
 #   3. Create a new stack in Arcane.
 #   4. Paste this file into the Compose field.
 #   5. Paste .env.example into the Environment field.
-#   6. Fill in YOUTUBE_URLS and the tunnel settings (VPS_IP, WG_SERVER_PUBLIC_KEY,
+#   6. Fill in VIDEO_URLS and the tunnel settings (VPS_IP, WG_SERVER_PUBLIC_KEY,
 #      WG_CLIENT_PRIVATE_KEY) from the VPS output.
 #   7. Click Deploy. Docker pulls all images and creates networks/volumes
 #      automatically — no cloning, no building, no extra commands.
@@ -19,8 +19,8 @@
 #   docker-compose -f docker-compose.tunnel.yml up -d
 #
 # Architecture:
-#   ytviewer → tor → wg-tunnel ═══WireGuard═══▶ VPS (wg-server) → Internet
-#           ytnet
+#   npc-viewers → tor → wg-tunnel ═══WireGuard═══▶ VPS (wg-server) → Internet
+#              viewernet
 #
 # Required .env variables for tunnel:
 #   VPS_IP                — Public IP of your VPS
@@ -46,7 +46,7 @@ services:
       - WG_CLIENT_PRIVATE_KEY=${WG_CLIENT_PRIVATE_KEY:?WG_CLIENT_PRIVATE_KEY must be set — get it from the VPS setup output}
       - WG_SERVER_PUBLIC_KEY=${WG_SERVER_PUBLIC_KEY:?WG_SERVER_PUBLIC_KEY must be set — get it from the VPS setup output}
     networks:
-      - ytnet
+      - viewernet
     healthcheck:
       # Verify WireGuard peer reachability — ping is sufficient and avoids DNS
       # dependencies that break inside the container after 0.0.0.0/1 routes are set.
@@ -75,7 +75,7 @@ services:
     volumes:
       - tor-data:/var/lib/tor
     networks:
-      - ytnet
+      - viewernet
     healthcheck:
       test: ["CMD-SHELL", "grep -q 'Bootstrapped 100%' /tmp/tor_bootstrap.log 2>/dev/null"]
       interval: 15s
@@ -83,16 +83,16 @@ services:
       retries: 10
       start_period: 90s
 
-  ytviewer:
+  npc-viewers:
     image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer:${IMAGE_TAG:-latest}
-    container_name: youtube-viewer
+    container_name: npc-viewers
     restart: unless-stopped
     depends_on:
       tor:
-        condition: service_healthy
+        condition: service_started
     environment:
       - NODE_ENV=production
-      - YOUTUBE_URLS=${YOUTUBE_URLS}
+      - VIDEO_URLS=${VIDEO_URLS}
       - TOR_ENABLED=${TOR_ENABLED:-true}
       - TOR_HOST=tor
       - TOR_START_PORT=${TOR_START_PORT:-9052}
@@ -101,15 +101,21 @@ services:
       - VIEW_ACTION_COUNT=${VIEW_ACTION_COUNT:-10}
       - VIEW_DURATION=${VIEW_DURATION:-50}
       - PAGE_DEFAULT_TIMEOUT=${PAGE_DEFAULT_TIMEOUT:-600}
-      - YOUTUBE_VIEWER_FORCE_DEBUG=${YOUTUBE_VIEWER_FORCE_DEBUG:-false}
+      - NPC_VIEWERS_FORCE_DEBUG=${NPC_VIEWERS_FORCE_DEBUG:-false}
       # Default true — this file is the tunnel variant
       - TUNNEL_ENABLED=${TUNNEL_ENABLED:-true}
       - VPS_IP=${VPS_IP}
     networks:
-      - ytnet
+      - viewernet
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('net').connect('/tmp/npc-viewers.sock').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
 
 networks:
-  ytnet:
+  viewernet:
     driver: bridge
 
 volumes:

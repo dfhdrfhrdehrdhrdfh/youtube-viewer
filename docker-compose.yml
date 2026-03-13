@@ -12,7 +12,7 @@ services:
     volumes:
       - tor-data:/var/lib/tor
     networks:
-      - ytnet
+      - viewernet
     healthcheck:
       test: ["CMD-SHELL", "grep -q 'Bootstrapped 100%' /tmp/tor_bootstrap.log 2>/dev/null"]
       interval: 10s
@@ -20,16 +20,16 @@ services:
       retries: 8
       start_period: 45s
 
-  ytviewer:
+  npc-viewers:
     image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer:${IMAGE_TAG:-latest}
-    container_name: youtube-viewer
+    container_name: npc-viewers
     restart: unless-stopped
     depends_on:
       tor:
-        condition: service_healthy
+        condition: service_started
     environment:
       - NODE_ENV=production
-      - YOUTUBE_URLS=${YOUTUBE_URLS}
+      - VIDEO_URLS=${VIDEO_URLS}
       - TOR_ENABLED=${TOR_ENABLED:-true}
       - TOR_HOST=tor
       - TOR_START_PORT=${TOR_START_PORT:-9052}
@@ -38,13 +38,19 @@ services:
       - VIEW_ACTION_COUNT=${VIEW_ACTION_COUNT:-10}
       - VIEW_DURATION=${VIEW_DURATION:-50}
       - PAGE_DEFAULT_TIMEOUT=${PAGE_DEFAULT_TIMEOUT:-600}
-      - YOUTUBE_VIEWER_FORCE_DEBUG=${YOUTUBE_VIEWER_FORCE_DEBUG:-false}
+      - NPC_VIEWERS_FORCE_DEBUG=${NPC_VIEWERS_FORCE_DEBUG:-false}
       - TUNNEL_ENABLED=${TUNNEL_ENABLED:-false}
     networks:
-      - ytnet
+      - viewernet
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('net').connect('/tmp/npc-viewers.sock').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
 
 networks:
-  ytnet:
+  viewernet:
     driver: bridge
 
 volumes:
