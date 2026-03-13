@@ -47,7 +47,7 @@ function startWebServer(port) {
       tunnelEnabled: TUNNEL_ENABLED,
       vpsIp: VPS_IP || null,
       vpsWgPort: VPS_WG_PORT,
-      containerIp: getContainerDirectIp() || 'check-failed (not yet fetched)',
+      containerIp: getContainerDirectIp() || 'Pending — not yet fetched',
       routingPath,
     });
   });
