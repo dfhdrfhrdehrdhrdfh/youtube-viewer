@@ -122,7 +122,7 @@ if [ "$TUNNEL_ENABLED" = "true" ]; then
     log "WARNING: Internet is NOT reachable through the tunnel."
     log "  Tor will likely fail to bootstrap. Troubleshooting:"
     log "  1. Check the wg-tunnel container logs: docker logs wg-tunnel"
-    log "  2. Verify the VPS WireGuard server is running: docker logs yt-wg-server"
+    log "  2. Verify the VPS WireGuard server is running: docker logs npc-wg-server"
     log "  3. Check that the WireGuard keys in .env match the VPS setup output."
     log "  4. Ensure UDP port 51821 is open on the VPS firewall."
     log "  5. See README.md for full setup instructions."
