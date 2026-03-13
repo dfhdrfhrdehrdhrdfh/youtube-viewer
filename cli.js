@@ -1,12 +1,12 @@
 const net = require('net');
 
-const SOCKET_PATH = '/tmp/ytviewer.sock';
+const SOCKET_PATH = '/tmp/npc-viewers.sock';
 
 const args = process.argv.slice(2);
 const action = args[0];
 
 function printUsage() {
-  console.log('YouTube Viewer — Agent Manager CLI');
+  console.log('NPC Viewers — Agent Manager CLI');
   console.log('');
   console.log('Usage:');
   console.log('  node cli.js start          Start a new viewing agent');
@@ -69,7 +69,7 @@ client.on('data', (data) => {
 
 client.on('error', (err) => {
   if (err.code === 'ENOENT' || err.code === 'ECONNREFUSED') {
-    console.log('Error: Cannot connect to YouTube Viewer process.');
+    console.log('Error: Cannot connect to NPC Viewers process.');
     console.log('Make sure the main application is running (node index).');
   } else {
     console.log(`Connection error: ${err.message}`);

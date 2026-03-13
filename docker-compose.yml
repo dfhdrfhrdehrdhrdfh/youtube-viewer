@@ -22,16 +22,16 @@ services:
 
   ytviewer:
     image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer:${IMAGE_TAG:-latest}
-    container_name: youtube-viewer
+    container_name: npc-viewers
     restart: unless-stopped
     depends_on:
       tor:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "8093:8093"
     environment:
       - NODE_ENV=production
-      - YOUTUBE_URLS=${YOUTUBE_URLS}
+      - VIDEO_URLS=${VIDEO_URLS:-${YOUTUBE_URLS}}
       - TOR_ENABLED=${TOR_ENABLED:-true}
       - TOR_HOST=tor
       - TOR_START_PORT=${TOR_START_PORT:-9052}
@@ -40,7 +40,7 @@ services:
       - VIEW_ACTION_COUNT=${VIEW_ACTION_COUNT:-10}
       - VIEW_DURATION=${VIEW_DURATION:-50}
       - PAGE_DEFAULT_TIMEOUT=${PAGE_DEFAULT_TIMEOUT:-600}
-      - YOUTUBE_VIEWER_FORCE_DEBUG=${YOUTUBE_VIEWER_FORCE_DEBUG:-false}
+      - NPC_VIEWERS_FORCE_DEBUG=${NPC_VIEWERS_FORCE_DEBUG:-${YOUTUBE_VIEWER_FORCE_DEBUG:-false}}
       - TUNNEL_ENABLED=${TUNNEL_ENABLED:-false}
     networks:
       - ytnet

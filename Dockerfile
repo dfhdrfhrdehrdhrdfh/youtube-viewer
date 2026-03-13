@@ -34,4 +34,4 @@ RUN npm install --production
 
 EXPOSE 8093
 
-CMD ["node", "index", "--color=16m"]
+CMD ["node", "--expose-gc", "index", "--color=16m"]
