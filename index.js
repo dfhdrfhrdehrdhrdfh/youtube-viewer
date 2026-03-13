@@ -60,7 +60,7 @@ async function main() {
   try {
     // ── Startup banner ──────────────────────────────────────────────
     logger.info('=============================================');
-    logger.info('  YouTube Viewer — Starting (Agent Mode)');
+    logger.info('  NPC Viewers — Starting (Agent Mode)');
     logger.info('=============================================');
     logger.info(`Total views   : ${TOTAL_COUNT}  (${BATCH_COUNT} parallel × ${Math.ceil(TOTAL_COUNT / BATCH_COUNT)} rounds)`);
     logger.info(`View duration : ~${VIEW_DURATION}s (±16.6%)`);
@@ -72,9 +72,9 @@ async function main() {
     logger.info('─────────────────────────────────────────────');
     logger.info(`VPS tunnel    : ${TUNNEL_ENABLED ? 'ENABLED (WireGuard)' : 'DISABLED'}`);
     if (TUNNEL_ENABLED) {
-      logger.info('Traffic route   : ytviewer → tor → WireGuard → VPS → Internet');
+      logger.info('Traffic route   : npc-viewers → tor → WireGuard → VPS → Internet');
     } else {
-      logger.info('Traffic route   : ytviewer → tor → Internet (direct)');
+      logger.info('Traffic route   : npc-viewers → tor → Internet (direct)');
     }
     logger.info('=============================================');
 
@@ -90,9 +90,9 @@ async function main() {
 
     logger.info('─────────────────────────────────────────────');
     logger.info('Container will keep running. Manage agents with:');
-    logger.info('  docker exec youtube-viewer node cli.js start');
-    logger.info('  docker exec youtube-viewer node cli.js stop <name>');
-    logger.info('  docker exec youtube-viewer node cli.js list');
+    logger.info('  docker exec npc-viewers node cli.js start');
+    logger.info('  docker exec npc-viewers node cli.js stop <name>');
+    logger.info('  docker exec npc-viewers node cli.js list');
     logger.info('─────────────────────────────────────────────');
   } catch (error) {
     logger.error(`Failed to initialise: ${error.message || error}`);

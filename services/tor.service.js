@@ -11,7 +11,7 @@ const {
 // When TOR_HOST is not localhost, Tor is running in a separate container
 const isExternalTor = TOR_HOST !== '127.0.0.1';
 
-// The ytviewer container's own public IP (direct, no proxy). Fetched once at startup.
+// The npc-viewers container's own public IP (direct, no proxy). Fetched once at startup.
 let _containerDirectIp = null;
 
 // Timeout for the direct uplink IP check (ms). Kept short so startup is not blocked long.
@@ -94,9 +94,9 @@ const verifyTorConnectivity = async (startPort, count) => {
     logger.success(`All ${count} Tor SOCKS ports are reachable on ${TOR_HOST}.`);
     logger.info('Chromium browsers will be configured with --proxy-server=socks5://' + `${TOR_HOST}:<port>`);
     if (TUNNEL_ENABLED) {
-      logger.info(`Tunnel routing: ytviewer → tor (${TOR_HOST}) → WireGuard → VPS → Internet`);
+      logger.info(`Tunnel routing: npc-viewers → tor (${TOR_HOST}) → WireGuard → VPS → Internet`);
     } else {
-      logger.info('Tunnel routing: ytviewer → tor → Internet (direct)');
+      logger.info('Tunnel routing: npc-viewers → tor → Internet (direct)');
     }
   } else {
     logger.warn('Some Tor SOCKS ports are unreachable. Affected batches will fail.');
@@ -110,8 +110,8 @@ const verifyTorConnectivity = async (startPort, count) => {
   _containerDirectIp = uplinkIp;
   logger.info(`  Container direct IP : ${uplinkIp}`);
   if (TUNNEL_ENABLED) {
-    logger.info('  ↳ Note: This is the ytviewer container\'s own IP (NOT tunneled).');
-    logger.info('    The ytviewer does not route through the WireGuard tunnel.');
+    logger.info('  ↳ Note: This is the npc-viewers container\'s own IP (NOT tunneled).');
+    logger.info('    The npc-viewers container does not route through the WireGuard tunnel.');
     if (VPS_IP) {
       logger.info(`    To verify the tunnel: check tor-proxy container logs — uplink IP should be ${VPS_IP}`);
     } else {

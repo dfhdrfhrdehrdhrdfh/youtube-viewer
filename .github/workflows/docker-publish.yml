@@ -38,7 +38,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata for youtube-viewer image
+      - name: Extract metadata for npc-viewers image
         id: meta-viewer
         uses: docker/metadata-action@v5
         with:
@@ -47,7 +47,7 @@ jobs:
             type=sha
             type=raw,value=${{ steps.branch-tag.outputs.tag }}
 
-      - name: Build and push youtube-viewer image
+      - name: Build and push npc-viewers image
         uses: docker/build-push-action@v5
         with:
           context: .

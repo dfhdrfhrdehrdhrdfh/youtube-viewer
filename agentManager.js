@@ -8,8 +8,8 @@ const agents = new Map();
 let nextAgentId = 1;
 
 function getTargetUrls() {
-  if (process.env.YOUTUBE_URLS) {
-    const urls = process.env.YOUTUBE_URLS.split(',').map((u) => u.trim()).filter(Boolean);
+  if (process.env.VIDEO_URLS) {
+    const urls = process.env.VIDEO_URLS.split(',').map((u) => u.trim()).filter(Boolean);
     if (urls.length > 0) return urls;
   }
   return urlReader('urls.txt');
