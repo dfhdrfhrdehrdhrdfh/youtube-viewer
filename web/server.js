@@ -39,7 +39,7 @@ function startWebServer(port) {
     try {
       const body = req.body || {};
       const config = {};
-      if (body.youtubeUrl) config.youtubeUrl = String(body.youtubeUrl);
+      if (body.videoUrl || body.youtubeUrl) config.videoUrl = String(body.videoUrl || body.youtubeUrl);
       if (body.batchCount) config.batchCount = parseInt(body.batchCount, 10);
       if (body.totalCount) config.totalCount = parseInt(body.totalCount, 10);
       if (body.viewDuration) config.viewDuration = parseInt(body.viewDuration, 10);

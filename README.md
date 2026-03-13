@@ -1,6 +1,6 @@
-# YouTube Viewer
+# NPC Viewers
 
-Containerized YouTube viewer using [Puppeteer](https://pptr.dev/), [Tor](https://www.torproject.org/) rotating proxies, and [Docker](https://www.docker.com/). Based on [soumyadityac/youtube-viewer](https://github.com/soumyadityac/youtube-viewer).
+Containerized video viewer using [Puppeteer](https://pptr.dev/), [Tor](https://www.torproject.org/) rotating proxies, and [Docker](https://www.docker.com/). Based on [soumyadityac/youtube-viewer](https://github.com/soumyadityac/youtube-viewer).
 
 > **Disclaimer:** For educational purposes only. Do not use to artificially inflate view counts or violate YouTube's Terms of Service.
 
@@ -18,12 +18,12 @@ Containerized YouTube viewer using [Puppeteer](https://pptr.dev/), [Tor](https:/
 
 ```bash
 cp .env.example .env
-nano .env                  # set YOUTUBE_URLS
+nano .env                  # set VIDEO_URLS
 docker compose up -d
 docker compose logs -f     # verify
 ```
 
-Or with **Arcane**: paste [`docker-compose.yml`](docker-compose.yml) + [`.env.example`](.env.example), set `YOUTUBE_URLS`, deploy.
+Or with **Arcane**: paste [`docker-compose.yml`](docker-compose.yml) + [`.env.example`](.env.example), set `VIDEO_URLS`, deploy.
 
 ### Option B — WireGuard VPS Tunnel
 
@@ -46,7 +46,7 @@ The output will display `VPS_IP`, `WG_SERVER_PUBLIC_KEY`, and `WG_CLIENT_PRIVATE
 
 ```bash
 cp .env.example .env
-nano .env                  # set YOUTUBE_URLS, TUNNEL_ENABLED=true, VPS_IP, keys
+nano .env                  # set VIDEO_URLS, TUNNEL_ENABLED=true, VPS_IP, keys
 docker compose -f docker-compose.tunnel.yml up -d
 ```
 
@@ -58,7 +58,7 @@ All settings are in `.env` (see [`.env.example`](.env.example) for defaults and 
 
 | Variable | Default | Description |
 |---|---|---|
-| `YOUTUBE_URLS` | *(required)* | Comma-separated YouTube video URLs |
+| `VIDEO_URLS` | *(required)* | Comma-separated YouTube video URLs |
 | `TOR_ENABLED` | `true` | Enable Tor proxy |
 | `BATCH_COUNT` | `6` | Parallel browser instances |
 | `TOTAL_COUNT` | `96` | Total view actions |

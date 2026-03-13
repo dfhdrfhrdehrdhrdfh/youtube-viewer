@@ -29,10 +29,10 @@ function evictOldAgents() {
   }
 }
 
-function getTargetUrls(youtubeUrl) {
-  if (youtubeUrl) return [youtubeUrl];
-  if (process.env.YOUTUBE_URLS) {
-    const urls = process.env.YOUTUBE_URLS.split(',').map((u) => u.trim()).filter(Boolean);
+function getTargetUrls(videoUrl) {
+  if (videoUrl) return [videoUrl];
+  if (process.env.VIDEO_URLS || process.env.YOUTUBE_URLS) {
+    const urls = (process.env.VIDEO_URLS || process.env.YOUTUBE_URLS).split(',').map((u) => u.trim()).filter(Boolean);
     if (urls.length > 0) return urls;
   }
   return urlReader('urls.txt');
@@ -40,7 +40,7 @@ function getTargetUrls(youtubeUrl) {
 
 async function runAgentTask(agentName, abortSignal, config) {
   const agent = agents.get(agentName);
-  const targetUrls = getTargetUrls(config.youtubeUrl);
+  const targetUrls = getTargetUrls(config.videoUrl);
   const totalRounds = Math.ceil(config.totalCount / config.batchCount);
 
   if (agent) {
@@ -83,7 +83,7 @@ function startAgent(optionalConfig) {
   const portStart = allocatePortBlock();
 
   const config = {
-    youtubeUrl: (optionalConfig && optionalConfig.youtubeUrl) || null,
+    videoUrl: (optionalConfig && optionalConfig.videoUrl) || null,
     batchCount,
     totalCount: (optionalConfig && optionalConfig.totalCount) || TOTAL_COUNT,
     viewDuration: (optionalConfig && optionalConfig.viewDuration) || VIEW_DURATION,
@@ -161,7 +161,7 @@ function listAgents() {
     status: a.status,
     startTime: a.startTime.toISOString(),
     config: {
-      youtubeUrl: a.config.youtubeUrl,
+      videoUrl: a.config.videoUrl,
       batchCount: a.config.batchCount,
       totalCount: a.config.totalCount,
       viewDuration: a.config.viewDuration,
