@@ -124,10 +124,45 @@ const verifyTorConnectivity = async (startPort, count) => {
   return allOk;
 };
 
+// Max retries and interval for waiting for Tor to become ready
+const TOR_WAIT_MAX_RETRIES = 30;
+const TOR_WAIT_INTERVAL_MS = 10000;
+
+/**
+ * Wait for Tor SOCKS ports to become reachable (retry loop).
+ * This allows the npc-viewers container to start without requiring
+ * Docker's service_healthy condition, fixing deployment on Arcane.
+ * @param {number} startPort first SOCKS port
+ * @param {number} count number of SOCKS ports
+ * @return {Promise<boolean>} true if Tor became ready
+ */
+const waitForTor = async (startPort, count) => {
+  logger.info('─────────────────────────────────────────');
+  logger.info('  Waiting for Tor to become ready...');
+  logger.info('─────────────────────────────────────────');
+
+  for (let attempt = 1; attempt <= TOR_WAIT_MAX_RETRIES; attempt += 1) {
+    // Probe the first SOCKS port as a canary
+    const result = await probeSocksPort(TOR_HOST, startPort, 5000);
+    if (result.ok) {
+      logger.success(`Tor is ready (port ${startPort} reachable on attempt ${attempt})`);
+      return true;
+    }
+    logger.info(`  Attempt ${attempt}/${TOR_WAIT_MAX_RETRIES}: Tor not ready yet (${result.error}). Retrying in ${TOR_WAIT_INTERVAL_MS / 1000}s...`);
+    await new Promise((resolve) => setTimeout(resolve, TOR_WAIT_INTERVAL_MS));
+  }
+
+  logger.error(`Tor did not become ready after ${TOR_WAIT_MAX_RETRIES} attempts (${(TOR_WAIT_MAX_RETRIES * TOR_WAIT_INTERVAL_MS / 1000)}s).`);
+  logger.error('Check the tor-proxy container logs for errors.');
+  return false;
+};
+
 const writeTorConfig = async (startPort, count) => {
   if (!IS_PROD || !TOR_ENABLED) return Promise.resolve();
   if (isExternalTor) {
     logger.info('Tor is running in a separate container. Skipping local config.');
+    // Wait for external Tor to become ready before verifying full connectivity
+    await waitForTor(startPort, count);
     await verifyTorConnectivity(startPort, count);
     return Promise.resolve();
   }
@@ -139,7 +174,7 @@ const writeTorConfig = async (startPort, count) => {
     const port = startPort + i;
     promiseArr.push(
       execWithPromise(
-        `echo "SocksPort ${port}" >> /etc/tor/torrc`,
+        `echo "SocksPort ${port} SessionGroup=${i} IsolateSOCKSAuth IsolateClientAddr" >> /etc/tor/torrc`,
       ).then(() => logger.debug(`PORT ${port} written in tor config`)),
     );
   }

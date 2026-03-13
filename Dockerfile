@@ -31,4 +31,4 @@ COPY ./package.json .
 
 RUN npm install --production
 
-CMD ["node", "index", "--color=16m"]
+CMD ["node", "--expose-gc", "index", "--color=16m"]

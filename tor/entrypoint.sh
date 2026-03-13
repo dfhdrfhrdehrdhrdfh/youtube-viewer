@@ -158,7 +158,7 @@ chown -R tor:tor /var/lib/tor
 chmod 700 /var/lib/tor
 
 # Write torrc configuration — use info-level logging so circuit & stream
-# events are visible, making it clear when the ytviewer is using Tor.
+# events are visible, making it clear when the npc-viewers container is using Tor.
 cat > /etc/tor/torrc <<EOF
 User tor
 DataDirectory /var/lib/tor
@@ -173,7 +173,7 @@ EOF
 
 for i in $(seq 0 $((NUM_PORTS - 1))); do
   PORT=$((START_PORT + i))
-  echo "SocksPort 0.0.0.0:${PORT}" >> /etc/tor/torrc
+  echo "SocksPort 0.0.0.0:${PORT} SessionGroup=${i} IsolateSOCKSAuth IsolateClientAddr" >> /etc/tor/torrc
 done
 
 log "Generated torrc:"
@@ -182,7 +182,7 @@ cat /etc/tor/torrc
 log "============================================"
 log " Starting Tor daemon"
 log "============================================"
-log "When the ytviewer container connects, you will see"
+log "When the npc-viewers container connects, you will see"
 log "  'New SOCKS connection' lines in this log."
 log "If you do NOT see them, the viewer is not routing through Tor."
 if [ "$TUNNEL_ENABLED" = "true" ]; then

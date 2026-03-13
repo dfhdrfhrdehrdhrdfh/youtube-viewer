@@ -84,6 +84,9 @@ async function main() {
     // ── IPC server for CLI management ───────────────────────────────
     startIpcServer();
 
+    // ── Start idle resource monitor ─────────────────────────────────
+    agentManager.startIdleMonitor();
+
     // ── Auto-start first agent ──────────────────────────────────────
     logger.info('Auto-starting first agent...');
     agentManager.startAgent();
