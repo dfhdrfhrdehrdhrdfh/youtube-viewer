@@ -182,4 +182,5 @@ const startTor = async () => {
 
 module.exports = {
   writeTorConfig, stopTor, startTor, verifyTorConnectivity, getContainerDirectIp,
+  probeSocksPort,
 };
