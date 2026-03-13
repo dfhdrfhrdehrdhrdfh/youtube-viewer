@@ -28,8 +28,28 @@ a:hover{text-decoration:underline}
 .status-dot.active{background:var(--success)}
 .status-dot.idle{background:var(--muted)}
 
+/* ── Connection Status Panel ────────────────── */
+.conn-panel{margin:0 20px;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.4)}
+.conn-panel-title{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px}
+.conn-cards{display:flex;flex-wrap:wrap;gap:12px}
+.conn-card{flex:1;min-width:180px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;position:relative;overflow:hidden}
+.conn-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.conn-card.green::before{background:var(--success)}
+.conn-card.grey::before{background:var(--muted)}
+.conn-card.amber::before{background:var(--warn)}
+.conn-card.indigo::before{background:var(--accent)}
+.conn-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px}
+.conn-value{font-size:13px;font-weight:500}
+.conn-badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500;color:#fff}
+.conn-badge.green{background:#16a34a}
+.conn-badge.grey{background:#374151}
+.conn-badge.amber{background:#d97706}
+.conn-sub{font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--mono)}
+.conn-route{font-size:11px;color:var(--muted);margin-top:6px;font-family:var(--mono);word-break:break-all}
+
 /* ── Layout ─────────────────────────────────── */
-.main{display:flex;gap:20px;padding:20px;margin-top:56px;height:calc(100vh - 56px)}
+.main-wrap{margin-top:56px;height:calc(100vh - 56px);overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding-top:16px;padding-bottom:20px}
+.main{display:flex;gap:20px;padding:0 20px;flex:1;min-height:0}
 .col-left{flex:0 0 60%;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding-right:4px}
 .col-right{flex:0 0 calc(40% - 20px);display:flex;flex-direction:column;min-height:0}
 
@@ -46,6 +66,8 @@ a:hover{text-decoration:underline}
 .form-input:focus{border-color:var(--accent)}
 .form-input.error{border-color:var(--danger)}
 .form-error{color:var(--danger);font-size:11px;margin-top:4px;min-height:16px}
+.form-help{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.4}
+.form-warn{font-size:11px;color:var(--warn);margin-top:3px;line-height:1.4}
 .form-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:600;transition:all 0.15s ease}
 .btn-primary{background:var(--accent);color:#fff;width:100%}
@@ -62,24 +84,44 @@ a:hover{text-decoration:underline}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ── Agent cards ────────────────────────────── */
-.agent-card{margin-bottom:12px}
-.agent-card.running{border-left:3px solid var(--accent);background:rgba(99,102,241,0.04)}
-.agent-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.agent-card{margin-bottom:12px;transition:box-shadow 0.3s ease,border-color 0.3s ease}
+.agent-card.running{border-left:none;background:rgba(99,102,241,0.04);box-shadow:0 0 0 1px #6366f1,0 4px 24px rgba(99,102,241,0.15)}
+.agent-card.status-completed{border-left:3px solid #22c55e}
+.agent-card.status-failed{border-left:3px solid #ef4444}
+.agent-card.status-stopped{border-left:3px solid #374151}
+.agent-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
 .agent-name{font-family:var(--mono);font-weight:700;font-size:14px}
-.badge{font-size:11px;padding:3px 6px;border-radius:20px;color:#fff;font-weight:500;display:inline-block}
+.badge{font-size:11px;padding:3px 6px;border-radius:20px;color:#fff;font-weight:500;display:inline-flex;align-items:center;gap:5px}
 .badge-running{background:#16a34a}
 .badge-stopping{background:#d97706}
 .badge-stopped{background:#374151}
 .badge-completed{background:#6366f1}
 .badge-failed{background:#dc2626}
-.agent-url{font-size:12px;color:var(--muted);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.agent-url a{color:var(--muted)}
-.agent-url a:hover{color:var(--accent)}
+@keyframes pulse-badge{0%,100%{opacity:1}50%{opacity:0.6}}
+.badge-running{animation:pulse-badge 2s ease-in-out infinite}
+.pulse-dot{width:6px;height:6px;border-radius:50%;background:#fff;animation:pulse-badge 2s ease-in-out infinite}
+.agent-title{font-size:13px;color:var(--muted);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.agent-data-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:12px}
+.agent-data-label{color:var(--muted);width:90px;flex-shrink:0;font-weight:500}
+.agent-data-value{flex:1;min-width:0}
+.agent-data-value a{color:var(--muted);font-size:11px}
+.agent-data-value a:hover{color:var(--accent)}
+.ip-pill{display:inline-block;font-family:var(--mono);font-size:11px;background:#1e2138;border:1px solid var(--border);border-radius:4px;padding:1px 6px;margin:1px 3px 1px 0}
+.tunnel-badge{display:inline-block;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500}
+.tunnel-badge.wg{background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(99,102,241,0.3)}
+.tunnel-badge.direct{background:rgba(100,116,139,0.15);color:#94a3b8;border:1px solid rgba(100,116,139,0.3)}
 .progress-row{display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:12px}
 .progress-label{color:var(--muted);width:48px;flex-shrink:0}
-.progress-val{font-family:var(--mono);width:64px;flex-shrink:0;text-align:right}
+.progress-val{font-family:var(--mono);width:100px;flex-shrink:0;text-align:right}
+.progress-pct{color:var(--muted);font-size:11px;margin-left:4px}
 .progress-track{flex:1;height:4px;background:#1e2138;border-radius:6px;overflow:hidden}
 .progress-fill{height:100%;background:var(--accent);border-radius:6px;transition:width 0.4s ease}
+.progress-fill.green{background:var(--success)}
+.watch-row{display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:12px}
+.watch-label{color:var(--muted);width:48px;flex-shrink:0}
+.watch-timer{font-family:var(--mono);width:100px;flex-shrink:0;text-align:right;font-size:11px}
+.watch-track{flex:1;height:3px;background:#1e2138;border-radius:6px;overflow:hidden}
+.watch-fill{height:100%;background:var(--warn);border-radius:6px;transition:width 1s linear}
 .agent-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:12px}
 .agent-uptime{color:var(--muted)}
 .agent-actions{display:flex;align-items:center;gap:8px}
@@ -89,6 +131,12 @@ a:hover{text-decoration:underline}
 .confirm-yes:hover{text-decoration:underline}
 .confirm-cancel{color:var(--muted);cursor:pointer}
 .confirm-cancel:hover{color:var(--text)}
+
+/* ── Completed summary ──────────────────────── */
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin-top:8px;font-size:12px}
+.summary-item{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(37,40,64,0.5)}
+.summary-label{color:var(--muted)}
+.summary-value{font-family:var(--mono);font-weight:500}
 
 /* ── Empty state ────────────────────────────── */
 .empty-state{text-align:center;padding:40px 20px;color:var(--muted)}
@@ -149,6 +197,17 @@ a:hover{text-decoration:underline}
   </div>
 </header>
 
+<!-- ── Main wrapper ─────────────────────────────────────────────────── -->
+<div class="main-wrap">
+
+<!-- ── Connection Status Panel ──────────────────────────────────────── -->
+<div class="conn-panel" id="connPanel">
+  <div class="conn-panel-title">Connection Status</div>
+  <div class="conn-cards" id="connCards">
+    <div class="conn-card grey"><div class="conn-label">Loading&#8230;</div></div>
+  </div>
+</div>
+
 <!-- ── Main layout ──────────────────────────────────────────────────── -->
 <div class="main">
   <!-- Left column -->
@@ -158,30 +217,41 @@ a:hover{text-decoration:underline}
       <div class="card-header">New Agent</div>
       <div class="card-body">
         <div class="form-group">
+          <label class="form-label">Name</label>
+          <input type="text" id="nameInput" class="form-input" placeholder="agent1, agent2, &#8230; (leave blank for auto)">
+          <div class="form-error" id="nameError"></div>
+        </div>
+        <div class="form-group">
           <label class="form-label">YouTube URL</label>
           <input type="text" id="urlInput" class="form-input" placeholder="https://www.youtube.com/watch?v=...">
           <div class="form-error" id="urlError"></div>
         </div>
         <div class="form-grid">
-          <div data-tooltip="Number of parallel browser instances">
+          <div>
             <label class="form-label">Batch Count</label>
             <input type="number" id="batchCount" class="form-input" value="6" min="1">
+            <div class="form-help">Number of browser instances that run in parallel. Each instance uses one Tor circuit. Higher values use more RAM and CPU simultaneously.</div>
           </div>
-          <div data-tooltip="Total number of view actions to perform">
+          <div>
             <label class="form-label">Total Count</label>
             <input type="number" id="totalCount" class="form-input" value="96" min="1">
+            <div class="form-help">Total number of individual view actions to perform. Must be exactly divisible by Batch Count for optimal resource use &#8212; if not divisible, the last batch will be smaller than the rest.</div>
+            <div class="form-warn" id="divisibilityHint" style="display:none"></div>
           </div>
-          <div data-tooltip="Average seconds to watch per video, ±16.6% randomness">
+          <div>
             <label class="form-label">View Duration</label>
             <input type="number" id="viewDuration" class="form-input" value="50" min="1">
+            <div class="form-help">Average number of seconds each video is watched. The actual duration varies by &#177;16.6% randomly each time to appear more natural.</div>
           </div>
-          <div data-tooltip="Videos watched per browser session">
+          <div>
             <label class="form-label">Videos / Session</label>
             <input type="number" id="viewActionCount" class="form-input" value="10" min="1">
+            <div class="form-help">How many videos are watched sequentially in a single browser session before the session closes and a fresh one opens.</div>
           </div>
-          <div data-tooltip="Max seconds to wait for page actions">
+          <div>
             <label class="form-label">Page Timeout</label>
             <input type="number" id="pageDefaultTimeout" class="form-input" value="600" min="10">
+            <div class="form-help">Maximum number of seconds the browser will wait for a page to load or an element to appear before treating it as a failure and moving on.</div>
           </div>
         </div>
         <button class="btn btn-primary" id="createBtn" onclick="createAgent()">Create Agent</button>
@@ -194,7 +264,7 @@ a:hover{text-decoration:underline}
       <div class="card-body" id="agentList">
         <div class="empty-state" id="emptyState">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-          <div>No agents yet — create one above.</div>
+          <div>No agents yet &#8212; create one above.</div>
         </div>
       </div>
     </div>
@@ -219,6 +289,7 @@ a:hover{text-decoration:underline}
     </div>
   </div>
 </div>
+</div>
 
 <!-- Toast container -->
 <div class="toast-container" id="toastContainer"></div>
@@ -227,16 +298,17 @@ a:hover{text-decoration:underline}
 (function() {
   // ── State ────────────────────────────────────────────────────────
   var agents = [];
+  var connStatus = null;
   var paused = false;
   var pauseBuffer = [];
   var logLines = 0;
   var MAX_LOG_LINES = 1000;
   var autoScroll = true;
-  var sseStatus = 'connected'; // connected | reconnecting | disconnected
+  var sseStatus = 'connected';
   var reconnectAttempts = 0;
   var eventSource = null;
   var reconnectTimer = null;
-  var confirmState = {}; // agentName -> 'stop'|'remove'|null
+  var confirmState = {};
   var intervals = [];
 
   // ── Helpers ──────────────────────────────────────────────────────
@@ -248,6 +320,14 @@ a:hover{text-decoration:underline}
     var h = Math.floor(m / 60);
     var rm = m % 60;
     return h + 'h ' + rm + 'm';
+  }
+
+  function formatDuration(seconds) {
+    if (!seconds && seconds !== 0) return '\u2014';
+    var m = Math.floor(seconds / 60);
+    var s = seconds % 60;
+    if (m === 0) return s + 's';
+    return m + 'm ' + s + 's';
   }
 
   function formatTimeSince(iso) {
@@ -274,6 +354,36 @@ a:hover{text-decoration:underline}
     }, 4000);
   }
 
+  // ── Divisibility check ──────────────────────────────────────────
+  function checkDivisibility() {
+    var bc = parseInt(document.getElementById('batchCount').value, 10) || 0;
+    var tc = parseInt(document.getElementById('totalCount').value, 10) || 0;
+    var hint = document.getElementById('divisibilityHint');
+    if (bc > 0 && tc > 0 && tc % bc !== 0) {
+      var remainder = tc % bc;
+      hint.textContent = '\u26A0 ' + tc + ' is not divisible by ' + bc + ' \u2014 last batch will have ' + remainder + ' view' + (remainder !== 1 ? 's' : '') + ' instead of ' + bc + '.';
+      hint.style.display = 'block';
+    } else {
+      hint.style.display = 'none';
+      hint.textContent = '';
+    }
+  }
+
+  // ── Name validation ─────────────────────────────────────────────
+  function validateNameInput() {
+    var input = document.getElementById('nameInput');
+    var err = document.getElementById('nameError');
+    var val = input.value.trim();
+    if (val && !/^[a-zA-Z0-9_-]+$/.test(val)) {
+      input.classList.add('error');
+      err.textContent = 'Name must contain only letters, numbers, hyphens, and underscores';
+      return false;
+    }
+    input.classList.remove('error');
+    err.textContent = '';
+    return true;
+  }
+
   // ── API calls ───────────────────────────────────────────────────
   async function fetchStatus() {
     try {
@@ -290,6 +400,71 @@ a:hover{text-decoration:underline}
     } catch (e) { /* silent */ }
   }
 
+  async function fetchConnectionStatus() {
+    try {
+      var res = await fetch('/api/connection-status');
+      connStatus = await res.json();
+      renderConnectionPanel();
+    } catch (e) { /* silent */ }
+  }
+
+  function renderConnectionPanel() {
+    if (!connStatus) return;
+    var cs = connStatus;
+    var html = '';
+
+    // Tor Status
+    var torColor = cs.torEnabled ? 'green' : 'grey';
+    html += '<div class="conn-card ' + torColor + '">';
+    html += '<div class="conn-label">Tor Status</div>';
+    html += '<div class="conn-value"><span class="conn-badge ' + torColor + '">' + (cs.torEnabled ? 'Enabled' : 'Disabled') + '</span></div>';
+    if (cs.torEnabled) {
+      html += '<div class="conn-sub">' + escapeHtml(cs.torHost) + ':' + cs.torStartPort + '</div>';
+    }
+    html += '</div>';
+
+    // Tunnel Status
+    var tunColor = cs.tunnelEnabled ? 'green' : 'grey';
+    html += '<div class="conn-card ' + tunColor + '">';
+    html += '<div class="conn-label">Tunnel Status</div>';
+    if (cs.tunnelEnabled) {
+      html += '<div class="conn-value"><span class="conn-badge green">Active</span></div>';
+      if (cs.vpsIp) {
+        html += '<div class="conn-sub">VPS: ' + escapeHtml(cs.vpsIp) + ':' + cs.vpsWgPort + '</div>';
+      } else {
+        html += '<div class="conn-sub" style="color:var(--warn)">VPS IP not configured</div>';
+      }
+    } else {
+      html += '<div class="conn-value"><span class="conn-badge grey">Disabled</span></div>';
+      html += '<div class="conn-sub" style="color:var(--muted)">Direct internet routing \u2014 Tor exits directly.</div>';
+    }
+    html += '<div class="conn-route">' + escapeHtml(cs.routingPath) + '</div>';
+    html += '</div>';
+
+    // Container IP
+    var ipFailed = cs.containerIp && cs.containerIp.indexOf('check-failed') !== -1;
+    var ipColor = ipFailed ? 'amber' : 'indigo';
+    html += '<div class="conn-card ' + ipColor + '">';
+    html += '<div class="conn-label">Container Uplink IP</div>';
+    if (ipFailed) {
+      html += '<div class="conn-value" style="color:var(--warn)">' + escapeHtml(cs.containerIp) + '</div>';
+      html += '<div class="conn-sub" style="color:var(--warn)">\u26A0 Uplink IP could not be determined</div>';
+    } else {
+      html += '<div class="conn-value" style="font-family:var(--mono)">' + escapeHtml(cs.containerIp || 'N/A') + '</div>';
+    }
+    html += '</div>';
+
+    // SOCKS Ports
+    var endPort = cs.torStartPort + cs.socksPortCount - 1;
+    html += '<div class="conn-card indigo">';
+    html += '<div class="conn-label">SOCKS Ports</div>';
+    html += '<div class="conn-value" style="font-family:var(--mono)">' + cs.torStartPort + ' \u2013 ' + endPort + '</div>';
+    html += '<div class="conn-sub">' + cs.socksPortCount + ' port' + (cs.socksPortCount !== 1 ? 's' : '') + '</div>';
+    html += '</div>';
+
+    document.getElementById('connCards').innerHTML = html;
+  }
+
   async function fetchAgents() {
     try {
       var res = await fetch('/api/agents');
@@ -299,12 +474,17 @@ a:hover{text-decoration:underline}
   }
 
   window.createAgent = async function() {
+    var nameInput = document.getElementById('nameInput');
     var urlInput = document.getElementById('urlInput');
     var urlError = document.getElementById('urlError');
     var btn = document.getElementById('createBtn');
     var url = urlInput.value.trim();
+    var name = nameInput.value.trim();
 
-    // Validation
+    // Name validation
+    if (!validateNameInput()) return;
+
+    // URL Validation
     urlError.textContent = '';
     urlInput.classList.remove('error');
     if (!url) {
@@ -335,22 +515,26 @@ a:hover{text-decoration:underline}
     btn.innerHTML = '<span class="spinner"></span> Creating...';
 
     try {
+      var bodyObj = {
+        videoUrl: url,
+        batchCount: parseInt(document.getElementById('batchCount').value, 10),
+        totalCount: parseInt(document.getElementById('totalCount').value, 10),
+        viewDuration: parseInt(document.getElementById('viewDuration').value, 10),
+        viewActionCount: parseInt(document.getElementById('viewActionCount').value, 10),
+        pageDefaultTimeout: parseInt(document.getElementById('pageDefaultTimeout').value, 10),
+      };
+      if (name) bodyObj.name = name;
+
       var res = await fetch('/api/agents', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          videoUrl: url,
-          batchCount: parseInt(document.getElementById('batchCount').value, 10),
-          totalCount: parseInt(document.getElementById('totalCount').value, 10),
-          viewDuration: parseInt(document.getElementById('viewDuration').value, 10),
-          viewActionCount: parseInt(document.getElementById('viewActionCount').value, 10),
-          pageDefaultTimeout: parseInt(document.getElementById('pageDefaultTimeout').value, 10),
-        })
+        body: JSON.stringify(bodyObj)
       });
       var data = await res.json();
       if (data.success) {
         showToast('Agent ' + data.name + ' started', 'success');
         urlInput.value = '';
+        nameInput.value = '';
         fetchAgents();
       } else {
         showToast(data.error || 'Failed to create agent', 'error');
@@ -417,7 +601,7 @@ a:hover{text-decoration:underline}
     badge.textContent = agents.length;
 
     if (agents.length === 0) {
-      container.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/><line x1="1" y1="1" x2="23" y2="23"/></svg><div>No agents yet — create one above.</div></div>';
+      container.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/><line x1="1" y1="1" x2="23" y2="23"/></svg><div>No agents yet \u2014 create one above.</div></div>';
       return;
     }
 
@@ -428,14 +612,23 @@ a:hover{text-decoration:underline}
       var isStopping = a.status === 'stopping';
       var isFinished = a.status === 'stopped' || a.status === 'completed' || a.status === 'failed';
       var badgeClass = 'badge badge-' + a.status;
-      var cardClass = 'card agent-card' + (isRunning ? ' running' : '');
+      var statusBorderClass = isFinished ? ' status-' + a.status : '';
+      var cardClass = 'card agent-card' + (isRunning ? ' running' : '') + statusBorderClass;
 
       var roundPct = a.totalRounds > 0 ? Math.round((a.currentRound / a.totalRounds) * 100) : 0;
       var viewPct = a.totalViews > 0 ? Math.round((a.completedViews / a.totalViews) * 100) : 0;
 
-      var urlDisplay = (a.config && a.config.videoUrl) || '(env default)';
-      var urlLink = (a.config && a.config.videoUrl) ? '<a href="' + escapeHtml(a.config.videoUrl) + '" target="_blank" rel="noopener">' + escapeHtml(a.config.videoUrl) + '</a>' : escapeHtml(urlDisplay);
+      // Badge content
+      var badgeContent = a.status;
+      if (isRunning) {
+        badgeContent = '<span class="pulse-dot"></span>' + a.status;
+      }
 
+      // URL display
+      var urlDisplay = (a.config && a.config.videoUrl) || '(env default)';
+      var urlLink = (a.config && a.config.videoUrl) ? '<a href="' + escapeHtml(a.config.videoUrl) + '" target="_blank" rel="noopener" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:100%">' + escapeHtml(a.config.videoUrl) + '</a>' : '<span style="color:var(--muted)">' + escapeHtml(urlDisplay) + '</span>';
+
+      // Actions
       var actions = '';
       if (confirmState[a.name] === 'stop') {
         actions = '<div class="confirm-inline"><span>Are you sure?</span> <a class="confirm-yes" onclick="confirmStop(\'' + a.name + '\')">Yes</a> <a class="confirm-cancel" onclick="cancelConfirm(\'' + a.name + '\')">Cancel</a></div>';
@@ -449,29 +642,109 @@ a:hover{text-decoration:underline}
         actions = '<button class="btn btn-sm btn-danger" onclick="removeAgent(\'' + a.name + '\')">Remove</button>';
       }
 
-      html += '<div class="' + cardClass + '">' +
-        '<div class="card-body">' +
-          '<div class="agent-top"><span class="agent-name">' + escapeHtml(a.name) + '</span><span class="' + badgeClass + '">' + a.status + '</span></div>' +
-          '<div class="agent-url"><span style="color:var(--muted);margin-right:4px">URL</span> ' + urlLink + '</div>' +
-          '<div class="progress-row"><span class="progress-label">Rounds</span><span class="progress-val">' + a.currentRound + ' / ' + a.totalRounds + '</span><div class="progress-track"><div class="progress-fill" style="width:' + roundPct + '%"></div></div></div>' +
-          '<div class="progress-row"><span class="progress-label">Views</span><span class="progress-val">' + a.completedViews + ' / ' + a.totalViews + '</span><div class="progress-track"><div class="progress-fill" style="width:' + viewPct + '%"></div></div></div>' +
-          '<div class="agent-bottom"><span class="agent-uptime" data-start="' + a.startTime + '">' + (isRunning || isStopping ? formatTimeSince(a.startTime) : '') + '</span><div class="agent-actions">' + actions + '</div></div>' +
-        '</div></div>';
+      // Tor IPs
+      var torIpsHtml = '';
+      if (a.torExitIps && a.torExitIps.length > 0) {
+        for (var j = 0; j < a.torExitIps.length; j++) {
+          torIpsHtml += '<span class="ip-pill">' + escapeHtml(a.torExitIps[j]) + '</span>';
+        }
+      } else if (isRunning || isStopping) {
+        torIpsHtml = '<span style="color:var(--muted);font-size:11px">Discovering\u2026</span>';
+      } else {
+        torIpsHtml = '<span style="color:var(--muted);font-size:11px">None</span>';
+      }
+
+      // Tunnel badge
+      var tunnelHtml = connStatus && connStatus.tunnelEnabled
+        ? '<span class="tunnel-badge wg">via WireGuard tunnel</span>'
+        : '<span class="tunnel-badge direct">direct Tor routing</span>';
+
+      html += '<div class="' + cardClass + '">';
+      html += '<div class="card-body">';
+
+      // Header row
+      html += '<div class="agent-top"><span class="agent-name">' + escapeHtml(a.name) + '</span><span class="' + badgeClass + '">' + badgeContent + '</span></div>';
+
+      // Video title
+      if (a.videoTitle) {
+        html += '<div class="agent-title">' + escapeHtml(a.videoTitle) + '</div>';
+      }
+
+      // Data rows
+      html += '<div class="agent-data-row"><span class="agent-data-label">URL</span><div class="agent-data-value">' + urlLink + '</div></div>';
+      html += '<div class="agent-data-row"><span class="agent-data-label">Tor IPs</span><div class="agent-data-value">' + torIpsHtml + '</div></div>';
+      html += '<div class="agent-data-row"><span class="agent-data-label">Tunnel</span><div class="agent-data-value">' + tunnelHtml + '</div></div>';
+
+      // Show completed summary for finished agents
+      if (isFinished) {
+        var sDur = a.sessionDuration != null ? formatDuration(a.sessionDuration) : '\u2014';
+        html += '<div class="summary-grid">';
+        html += '<div class="summary-item"><span class="summary-label">Views succeeded</span><span class="summary-value" style="color:var(--success)">' + (a.viewsSucceeded || 0) + '</span></div>';
+        html += '<div class="summary-item"><span class="summary-label">Views failed</span><span class="summary-value" style="color:var(--danger)">' + (a.viewsFailed || 0) + '</span></div>';
+        html += '<div class="summary-item"><span class="summary-label">Total views</span><span class="summary-value">' + a.completedViews + ' / ' + a.totalViews + '</span></div>';
+        html += '<div class="summary-item"><span class="summary-label">Session duration</span><span class="summary-value">' + sDur + '</span></div>';
+
+        // View counts per URL
+        if (a.viewCounts && Object.keys(a.viewCounts).length > 0) {
+          var urls = Object.keys(a.viewCounts);
+          var totalAdded = 0;
+          for (var vu = 0; vu < urls.length; vu++) {
+            var vc = a.viewCounts[urls[vu]];
+            totalAdded += vc.added || 0;
+            var shortUrl = urls[vu].length > 50 ? urls[vu].substring(0, 47) + '...' : urls[vu];
+            html += '<div class="summary-item"><span class="summary-label" title="' + escapeHtml(urls[vu]) + '">' + escapeHtml(shortUrl) + '</span><span class="summary-value">' + (vc.initial || '?') + ' \u2192 ' + (vc.current || '?') + '</span></div>';
+          }
+          html += '<div class="summary-item"><span class="summary-label">Views added</span><span class="summary-value" style="color:var(--success)">' + totalAdded + '</span></div>';
+        }
+        html += '</div>';
+      } else {
+        // Progress bars for running/stopping agents
+        html += '<div class="progress-row"><span class="progress-label">Rounds</span><span class="progress-val">' + a.currentRound + ' / ' + a.totalRounds + '<span class="progress-pct">' + roundPct + '%</span></span><div class="progress-track"><div class="progress-fill" style="width:' + roundPct + '%"></div></div></div>';
+        html += '<div class="progress-row"><span class="progress-label">Views</span><span class="progress-val">' + a.completedViews + ' / ' + a.totalViews + '<span class="progress-pct">' + viewPct + '%</span></span><div class="progress-track"><div class="progress-fill" style="width:' + viewPct + '%"></div></div></div>';
+
+        // Watch timer
+        if (a.currentViewDuration && a.currentViewStartTime && (isRunning || isStopping)) {
+          var elapsed = Math.max(0, Math.floor((Date.now() - new Date(a.currentViewStartTime).getTime()) / 1000));
+          var dur = a.currentViewDuration;
+          var watchPct = Math.min(100, Math.round((elapsed / dur) * 100));
+          html += '<div class="watch-row" data-watch-start="' + a.currentViewStartTime + '" data-watch-dur="' + dur + '"><span class="watch-label">Watching</span><span class="watch-timer">' + elapsed + 's / ' + dur + 's</span><div class="watch-track"><div class="watch-fill" style="width:' + watchPct + '%"></div></div></div>';
+        }
+      }
+
+      // Bottom row
+      html += '<div class="agent-bottom"><span class="agent-uptime" data-start="' + a.startTime + '">' + (isRunning || isStopping ? formatTimeSince(a.startTime) : '') + '</span><div class="agent-actions">' + actions + '</div></div>';
+
+      html += '</div></div>';
     }
     container.innerHTML = html;
   }
 
-  // ── Uptime ticker (shared interval) ─────────────────────────────
-  function updateUptimes() {
+  // ── Uptime and watch timer ticker (shared interval) ─────────────
+  function updateTimers() {
+    // Update uptimes
     var els = document.querySelectorAll('.agent-uptime[data-start]');
     for (var i = 0; i < els.length; i++) {
       var start = els[i].getAttribute('data-start');
       if (start) {
-        // Only update for running/stopping agents (those with text)
         var card = els[i].closest('.agent-card');
         if (card && card.classList.contains('running')) {
           els[i].textContent = formatTimeSince(start);
         }
+      }
+    }
+
+    // Update watch timers
+    var watchEls = document.querySelectorAll('.watch-row[data-watch-start]');
+    for (var w = 0; w < watchEls.length; w++) {
+      var wStart = watchEls[w].getAttribute('data-watch-start');
+      var wDur = parseInt(watchEls[w].getAttribute('data-watch-dur'), 10);
+      if (wStart && wDur) {
+        var elapsed = Math.max(0, Math.floor((Date.now() - new Date(wStart).getTime()) / 1000));
+        var pct = Math.min(100, Math.round((elapsed / wDur) * 100));
+        var timerEl = watchEls[w].querySelector('.watch-timer');
+        var fillEl = watchEls[w].querySelector('.watch-fill');
+        if (timerEl) timerEl.textContent = elapsed + 's / ' + wDur + 's';
+        if (fillEl) fillEl.style.width = pct + '%';
       }
     }
   }
@@ -527,11 +800,18 @@ a:hover{text-decoration:underline}
     logLines = 0;
   };
 
-  // ── URL input clear error on type ───────────────────────────────
+  // ── Input listeners ────────────────────────────────────────────
   document.getElementById('urlInput').addEventListener('input', function() {
     this.classList.remove('error');
     document.getElementById('urlError').textContent = '';
   });
+
+  document.getElementById('nameInput').addEventListener('input', function() {
+    validateNameInput();
+  });
+
+  document.getElementById('batchCount').addEventListener('input', checkDivisibility);
+  document.getElementById('totalCount').addEventListener('input', checkDivisibility);
 
   // ── SSE connection ──────────────────────────────────────────────
   function updateLogDot() {
@@ -570,12 +850,13 @@ a:hover{text-decoration:underline}
   // ── Init ────────────────────────────────────────────────────────
   fetchStatus();
   fetchAgents();
+  fetchConnectionStatus();
   connectSSE();
 
   var statusInterval = setInterval(fetchStatus, 5000);
   var agentInterval = setInterval(fetchAgents, 3000);
-  var uptimeInterval = setInterval(updateUptimes, 1000);
-  intervals.push(statusInterval, agentInterval, uptimeInterval);
+  var timerInterval = setInterval(updateTimers, 1000);
+  intervals.push(statusInterval, agentInterval, timerInterval);
 
   window.addEventListener('beforeunload', function() {
     for (var i = 0; i < intervals.length; i++) clearInterval(intervals[i]);

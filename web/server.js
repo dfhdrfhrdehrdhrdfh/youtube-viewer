@@ -3,6 +3,11 @@ const fs = require('fs');
 const express = require('express');
 const agentManager = require('../agentManager');
 const { logBuffer, logEmitter } = require('../utils/logger');
+const { getContainerDirectIp } = require('../services/tor.service');
+const {
+  TOR_ENABLED, TOR_HOST, START_PORT, BATCH_COUNT,
+  TUNNEL_ENABLED, VPS_IP, VPS_WG_PORT,
+} = require('../utils/constants');
 
 const startTime = Date.now();
 
@@ -29,6 +34,24 @@ function startWebServer(port) {
     });
   });
 
+  // ── GET /api/connection-status ──────────────────────────────────────
+  app.get('/api/connection-status', (req, res) => {
+    const routingPath = TUNNEL_ENABLED ?
+      'ytviewer → tor → WireGuard → VPS → Internet' :
+      'ytviewer → tor → Internet';
+    res.json({
+      torEnabled: TOR_ENABLED,
+      torHost: TOR_HOST,
+      torStartPort: START_PORT,
+      socksPortCount: BATCH_COUNT,
+      tunnelEnabled: TUNNEL_ENABLED,
+      vpsIp: VPS_IP || null,
+      vpsWgPort: VPS_WG_PORT,
+      containerIp: getContainerDirectIp() || 'check-failed (not yet fetched)',
+      routingPath,
+    });
+  });
+
   // ── GET /api/agents ─────────────────────────────────────────────────
   app.get('/api/agents', (req, res) => {
     res.json(agentManager.listAgents());
@@ -39,6 +62,7 @@ function startWebServer(port) {
     try {
       const body = req.body || {};
       const config = {};
+      if (body.name) config.name = String(body.name);
       if (body.videoUrl || body.youtubeUrl) config.videoUrl = String(body.videoUrl || body.youtubeUrl);
       if (body.batchCount) config.batchCount = parseInt(body.batchCount, 10);
       if (body.totalCount) config.totalCount = parseInt(body.totalCount, 10);
