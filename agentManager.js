@@ -43,14 +43,21 @@ function cleanupIfIdle() {
     try {
       const pids = execSync('pgrep -f chromium-browser 2>/dev/null || true', { encoding: 'utf8' }).trim();
       if (pids) {
-        pids.split('\n').filter(Boolean).forEach((pid) => {
+        const pidList = pids.split('\n').filter(Boolean);
+        pidList.forEach((pid) => {
           try {
             process.kill(parseInt(pid, 10), 'SIGKILL');
-          } catch (_) {/* already dead */}
+          } catch (killErr) {
+            if (killErr.code !== 'ESRCH') {
+              logger.debug(`Could not kill PID ${pid}: ${killErr.message}`);
+            }
+          }
         });
-        logger.info(`Killed ${pids.split('\n').filter(Boolean).length} orphaned chromium process(es)`);
+        logger.info(`Killed ${pidList.length} orphaned chromium process(es)`);
       }
-    } catch (_) {/* pgrep not found or no processes */}
+    } catch (pgrepErr) {
+      logger.debug(`Chromium cleanup skipped: ${pgrepErr.message}`);
+    }
   }
 
   // Request garbage collection if --expose-gc was used
