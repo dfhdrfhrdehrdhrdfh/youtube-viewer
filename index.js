@@ -10,7 +10,7 @@ const {
   TUNNEL_ENABLED,
 } = require('./utils/constants');
 
-const SOCKET_PATH = '/tmp/ytviewer.sock';
+const SOCKET_PATH = '/tmp/npc-viewers.sock';
 
 // ── IPC server for CLI commands (docker exec node cli.js ...) ────────────
 function startIpcServer() {
@@ -61,7 +61,7 @@ async function main() {
   try {
     // ── Startup banner ──────────────────────────────────────────────
     logger.info('=============================================');
-    logger.info('  YouTube Viewer — Starting (Agent Mode)');
+    logger.info('  NPC Viewers — Starting (Agent Mode)');
     logger.info('=============================================');
     logger.info(`Total views   : ${TOTAL_COUNT}  (${BATCH_COUNT} parallel × ${Math.ceil(TOTAL_COUNT / BATCH_COUNT)} rounds)`);
     logger.info(`View duration : ~${VIEW_DURATION}s (±16.6%)`);
@@ -94,9 +94,9 @@ async function main() {
 
     logger.info('─────────────────────────────────────────────');
     logger.info('Container will keep running. Manage agents with:');
-    logger.info('  docker exec youtube-viewer node cli.js start');
-    logger.info('  docker exec youtube-viewer node cli.js stop <name>');
-    logger.info('  docker exec youtube-viewer node cli.js list');
+    logger.info('  docker exec npc-viewers node cli.js start');
+    logger.info('  docker exec npc-viewers node cli.js stop <name>');
+    logger.info('  docker exec npc-viewers node cli.js list');
     logger.info('  Web dashboard: http://localhost:8093');
     logger.info('─────────────────────────────────────────────');
   } catch (error) {

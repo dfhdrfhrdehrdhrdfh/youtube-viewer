@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YouTube Viewer</title>
+<title>NPC Viewers</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -140,7 +140,7 @@ a:hover{text-decoration:underline}
 <header class="header">
   <div class="header-left">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="var(--accent)" stroke="var(--accent)"/></svg>
-    YouTube Viewer
+    NPC Viewers
   </div>
   <div class="status-pill">
     <span class="status-dot idle" id="headerDot"></span>
@@ -339,7 +339,7 @@ a:hover{text-decoration:underline}
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-          youtubeUrl: url,
+          videoUrl: url,
           batchCount: parseInt(document.getElementById('batchCount').value, 10),
           totalCount: parseInt(document.getElementById('totalCount').value, 10),
           viewDuration: parseInt(document.getElementById('viewDuration').value, 10),
@@ -433,8 +433,8 @@ a:hover{text-decoration:underline}
       var roundPct = a.totalRounds > 0 ? Math.round((a.currentRound / a.totalRounds) * 100) : 0;
       var viewPct = a.totalViews > 0 ? Math.round((a.completedViews / a.totalViews) * 100) : 0;
 
-      var urlDisplay = (a.config && a.config.youtubeUrl) || '(env default)';
-      var urlLink = (a.config && a.config.youtubeUrl) ? '<a href="' + escapeHtml(a.config.youtubeUrl) + '" target="_blank" rel="noopener">' + escapeHtml(a.config.youtubeUrl) + '</a>' : escapeHtml(urlDisplay);
+      var urlDisplay = (a.config && a.config.videoUrl) || '(env default)';
+      var urlLink = (a.config && a.config.videoUrl) ? '<a href="' + escapeHtml(a.config.videoUrl) + '" target="_blank" rel="noopener">' + escapeHtml(a.config.videoUrl) + '</a>' : escapeHtml(urlDisplay);
 
       var actions = '';
       if (confirmState[a.name] === 'stop') {

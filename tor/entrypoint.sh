@@ -173,7 +173,9 @@ EOF
 
 for i in $(seq 0 $((NUM_PORTS - 1))); do
   PORT=$((START_PORT + i))
-  echo "SocksPort 0.0.0.0:${PORT}" >> /etc/tor/torrc
+  # SessionGroup ensures each port gets its own Tor circuits (= unique exit IPs).
+  # IsolateSOCKSAuth + IsolateClientAddr prevent circuit sharing across ports.
+  echo "SocksPort 0.0.0.0:${PORT} SessionGroup=${i} IsolateSOCKSAuth IsolateClientAddr" >> /etc/tor/torrc
 done
 
 log "Generated torrc:"

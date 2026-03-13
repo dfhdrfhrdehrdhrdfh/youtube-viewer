@@ -1,8 +1,9 @@
+const { execSync } = require('child_process');
 const startViewingHandler = require('./handlers/startViewing.handler');
 const { logger, urlReader } = require('./utils');
 const {
   START_PORT, TOTAL_COUNT, BATCH_COUNT, VIEW_DURATION,
-  VIEW_ACTION_COUNT, PAGE_DEFAULT_TIMEOUT,
+  VIEW_ACTION_COUNT, PAGE_DEFAULT_TIMEOUT, IS_PROD,
 } = require('./utils/constants');
 
 const agents = new Map();
@@ -21,18 +22,58 @@ function allocatePortBlock() {
 function evictOldAgents() {
   if (agents.size <= MAX_COMPLETED_AGENTS) return;
   const finished = Array.from(agents.values())
-    .filter((a) => a.status === 'completed' || a.status === 'failed' || a.status === 'stopped')
-    .sort((a, b) => a.startTime - b.startTime);
+      .filter((a) => a.status === 'completed' || a.status === 'failed' || a.status === 'stopped')
+      .sort((a, b) => a.startTime - b.startTime);
   while (agents.size > MAX_COMPLETED_AGENTS && finished.length > 0) {
     const old = finished.shift();
     agents.delete(old.name);
   }
 }
 
-function getTargetUrls(youtubeUrl) {
-  if (youtubeUrl) return [youtubeUrl];
-  if (process.env.YOUTUBE_URLS) {
-    const urls = process.env.YOUTUBE_URLS.split(',').map((u) => u.trim()).filter(Boolean);
+// ── Resource cleanup when all agents are idle ───────────────────────────
+function cleanupIfIdle() {
+  const running = Array.from(agents.values())
+      .some((a) => a.status === 'running' || a.status === 'stopping');
+  if (running) return;
+
+  logger.info('All agents idle — cleaning up resources to reduce memory usage');
+
+  // Kill orphaned chromium-browser processes (production only)
+  if (IS_PROD) {
+    try {
+      const pids = execSync('pgrep -f chromium-browser 2>/dev/null || true', { encoding: 'utf8' }).trim();
+      if (pids) {
+        const pidList = pids.split('\n').filter(Boolean);
+        pidList.forEach((pid) => {
+          try {
+            process.kill(parseInt(pid, 10), 'SIGKILL');
+          } catch (killErr) {
+            if (killErr.code !== 'ESRCH') {
+              logger.debug(`Could not kill PID ${pid}: ${killErr.message}`);
+            }
+          }
+        });
+        logger.info(`Killed ${pidList.length} orphaned chromium process(es)`);
+      }
+    } catch (pgrepErr) {
+      logger.debug(`Chromium cleanup skipped: ${pgrepErr.message}`);
+    }
+  }
+
+  // Request garbage collection if --expose-gc was used
+  if (typeof global.gc === 'function') {
+    global.gc();
+    logger.info('Garbage collection completed');
+  }
+
+  const mem = process.memoryUsage();
+  logger.info(`Memory after cleanup: RSS ${Math.round(mem.rss / 1024 / 1024)}MB, Heap ${Math.round(mem.heapUsed / 1024 / 1024)}/${Math.round(mem.heapTotal / 1024 / 1024)}MB`);
+}
+
+function getTargetUrls(videoUrl) {
+  if (videoUrl) return [videoUrl];
+  if (process.env.VIDEO_URLS || process.env.YOUTUBE_URLS) {
+    const urls = (process.env.VIDEO_URLS || process.env.YOUTUBE_URLS).split(',').map((u) => u.trim()).filter(Boolean);
     if (urls.length > 0) return urls;
   }
   return urlReader('urls.txt');
@@ -40,7 +81,7 @@ function getTargetUrls(youtubeUrl) {
 
 async function runAgentTask(agentName, abortSignal, config) {
   const agent = agents.get(agentName);
-  const targetUrls = getTargetUrls(config.youtubeUrl);
+  const targetUrls = getTargetUrls(config.videoUrl);
   const totalRounds = Math.ceil(config.totalCount / config.batchCount);
 
   if (agent) {
@@ -83,7 +124,7 @@ function startAgent(optionalConfig) {
   const portStart = allocatePortBlock();
 
   const config = {
-    youtubeUrl: (optionalConfig && optionalConfig.youtubeUrl) || null,
+    videoUrl: (optionalConfig && optionalConfig.videoUrl) || null,
     batchCount,
     totalCount: (optionalConfig && optionalConfig.totalCount) || TOTAL_COUNT,
     viewDuration: (optionalConfig && optionalConfig.viewDuration) || VIEW_DURATION,
@@ -95,21 +136,23 @@ function startAgent(optionalConfig) {
   const abortSignal = { aborted: false };
 
   const promise = runAgentTask(agentName, abortSignal, config)
-    .then(() => {
-      const agent = agents.get(agentName);
-      if (agent) {
-        agent.status = agent.status === 'stopping' ? 'stopped' : 'completed';
-        logger.info(`[${agentName}] Finished (${agent.status})`);
-      }
-    })
-    .catch((err) => {
-      const agent = agents.get(agentName);
-      if (agent) agent.status = 'failed';
-      logger.error(`[${agentName}] Failed: ${err.message || err}`);
-    })
-    .finally(() => {
-      evictOldAgents();
-    });
+      .then(() => {
+        const agent = agents.get(agentName);
+        if (agent) {
+          agent.status = agent.status === 'stopping' ? 'stopped' : 'completed';
+          logger.info(`[${agentName}] Finished (${agent.status})`);
+        }
+      })
+      .catch((err) => {
+        const agent = agents.get(agentName);
+        if (agent) agent.status = 'failed';
+        logger.error(`[${agentName}] Failed: ${err.message || err}`);
+      })
+      .finally(() => {
+        evictOldAgents();
+        // Delay cleanup slightly so the agent status update is fully committed
+        setTimeout(cleanupIfIdle, 5000);
+      });
 
   agents.set(agentName, {
     name: agentName,
@@ -161,7 +204,7 @@ function listAgents() {
     status: a.status,
     startTime: a.startTime.toISOString(),
     config: {
-      youtubeUrl: a.config.youtubeUrl,
+      videoUrl: a.config.videoUrl,
       batchCount: a.config.batchCount,
       totalCount: a.config.totalCount,
       viewDuration: a.config.viewDuration,

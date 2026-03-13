@@ -77,7 +77,7 @@ const verifyTorConnectivity = async (startPort, count) => {
   logger.info(`VPS tunnel: ${TUNNEL_ENABLED ? 'ENABLED (WireGuard → VPS)' : 'DISABLED (direct internet)'}`);
 
   const results = await Promise.all(
-    Array.from({ length: count }, (_, i) => probeSocksPort(TOR_HOST, startPort + i)),
+      Array.from({ length: count }, (_, i) => probeSocksPort(TOR_HOST, startPort + i)),
   );
 
   let allOk = true;
@@ -124,10 +124,41 @@ const verifyTorConnectivity = async (startPort, count) => {
   return allOk;
 };
 
+/**
+ * Wait for external Tor container to become ready (SOCKS ports reachable).
+ * Retries up to maxRetries times with retryDelaySec between attempts.
+ * This allows the viewer container to start immediately (service_started)
+ * while Tor is still bootstrapping, preventing Arcane deployment timeouts.
+ * @param {number} startPort - First SOCKS port.
+ * @param {number} count - Number of SOCKS ports.
+ * @param {number} maxRetries - Max retry attempts.
+ * @param {number} retryDelaySec - Seconds between retries.
+ * @return {Promise<boolean>} Whether all ports became reachable.
+ */
+const waitForTor = async (startPort, count, maxRetries = 30, retryDelaySec = 10) => {
+  logger.info(`Waiting for Tor SOCKS ports to become reachable (up to ${maxRetries * retryDelaySec}s)...`);
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    const results = await Promise.all(
+        Array.from({ length: count }, (_, i) => probeSocksPort(TOR_HOST, startPort + i)),
+    );
+    const allOk = results.every((r) => r.ok);
+    if (allOk) {
+      logger.success(`All ${count} Tor SOCKS ports are reachable after ${attempt} attempt(s).`);
+      return true;
+    }
+    const reachable = results.filter((r) => r.ok).length;
+    logger.info(`Tor readiness: ${reachable}/${count} ports reachable (attempt ${attempt}/${maxRetries}). Retrying in ${retryDelaySec}s...`);
+    await new Promise((resolve) => setTimeout(resolve, retryDelaySec * 1000));
+  }
+  logger.warn(`Tor did not become fully ready after ${maxRetries} attempts. Proceeding anyway — some batches may fail.`);
+  return false;
+};
+
 const writeTorConfig = async (startPort, count) => {
   if (!IS_PROD || !TOR_ENABLED) return Promise.resolve();
   if (isExternalTor) {
     logger.info('Tor is running in a separate container. Skipping local config.');
+    await waitForTor(startPort, count);
     await verifyTorConnectivity(startPort, count);
     return Promise.resolve();
   }
@@ -138,9 +169,9 @@ const writeTorConfig = async (startPort, count) => {
   for (let i = 0; i < count; i += 1) {
     const port = startPort + i;
     promiseArr.push(
-      execWithPromise(
-        `echo "SocksPort ${port}" >> /etc/tor/torrc`,
-      ).then(() => logger.debug(`PORT ${port} written in tor config`)),
+        execWithPromise(
+            `echo "SocksPort ${port}" >> /etc/tor/torrc`,
+        ).then(() => logger.debug(`PORT ${port} written in tor config`)),
     );
   }
   return Promise.all(promiseArr).then(() => {
@@ -181,5 +212,5 @@ const startTor = async () => {
 };
 
 module.exports = {
-  writeTorConfig, stopTor, startTor, verifyTorConnectivity, getContainerDirectIp,
+  writeTorConfig, stopTor, startTor, verifyTorConnectivity, waitForTor, getContainerDirectIp,
 };
