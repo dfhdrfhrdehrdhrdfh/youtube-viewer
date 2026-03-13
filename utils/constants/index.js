@@ -5,6 +5,7 @@ const TOR_HOST = process.env.TOR_HOST || '127.0.0.1';
 const IP_GETTER_URL = 'https://api.ipify.org/';
 const TUNNEL_ENABLED = process.env.TUNNEL_ENABLED === 'true';
 const VPS_IP = process.env.VPS_IP || '';
+const VPS_WG_PORT = parseInt(process.env.VPS_WG_PORT, 10) || 51821;
 
 /**
  * All settings can be configured via environment variables.
@@ -30,6 +31,7 @@ module.exports = {
   IP_GETTER_URL,
   TUNNEL_ENABLED,
   VPS_IP,
+  VPS_WG_PORT,
 
   START_PORT,
   BATCH_COUNT,

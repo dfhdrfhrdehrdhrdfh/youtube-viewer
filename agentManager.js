@@ -1,6 +1,8 @@
 const { execSync } = require('child_process');
+const https = require('https');
 const startViewingHandler = require('./handlers/startViewing.handler');
 const { logger, urlReader } = require('./utils');
+const { logEmitter } = require('./utils/logger');
 const {
   START_PORT, TOTAL_COUNT, BATCH_COUNT, VIEW_DURATION,
   VIEW_ACTION_COUNT, PAGE_DEFAULT_TIMEOUT, IS_PROD,
@@ -79,6 +81,70 @@ function getTargetUrls(videoUrl) {
   return urlReader('urls.txt');
 }
 
+// ── Fetch video title from YouTube oEmbed ───────────────────────────────
+function fetchVideoTitle(youtubeUrl) {
+  return new Promise((resolve) => {
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(youtubeUrl)}&format=json`;
+    const req = https.get(oembedUrl, { timeout: 5000 }, (res) => {
+      let data = '';
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          resolve(json.title || null);
+        } catch (_) {
+          resolve(null);
+        }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(null);
+    });
+  });
+}
+
+// ── Listen for Tor exit IPs and view counts in log messages ─────────────
+logEmitter.on('log', (entry) => {
+  if (!entry || !entry.message || typeof entry.message !== 'string') return;
+  const msg = entry.message;
+
+  // Capture Tor exit IPs: "[port XXXX] Tor exit IP: X.X.X.X ..."
+  const ipMatch = msg.match(/Tor exit IP:\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/);
+  if (ipMatch) {
+    const ip = ipMatch[1];
+    for (const agent of agents.values()) {
+      if (agent.status === 'running') {
+        if (!agent.torExitIps.includes(ip)) {
+          agent.torExitIps.push(ip);
+        }
+      }
+    }
+  }
+
+  // Capture view counts from logCount: "Init View Count: X Current View Count: Y Views added this session: Z"
+  const countMatch = msg.match(/Attempted (https?:\/\/[^\s]+) with IP:.+Init View Count:\s*(\d+)\s+Current View Count:\s*(\d+)\s+Views added this session:\s*(-?\d+)/);
+  if (countMatch) {
+    const url = countMatch[1];
+    const initial = parseInt(countMatch[2], 10);
+    const current = parseInt(countMatch[3], 10);
+    const added = parseInt(countMatch[4], 10);
+    for (const agent of agents.values()) {
+      if (agent.status === 'running') {
+        if (!agent.viewCounts[url]) {
+          agent.viewCounts[url] = { initial, current, added };
+        } else {
+          agent.viewCounts[url].current = current;
+          agent.viewCounts[url].added = added;
+        }
+      }
+    }
+  }
+});
+
 async function runAgentTask(agentName, abortSignal, config) {
   const agent = agents.get(agentName);
   const targetUrls = getTargetUrls(config.videoUrl);
@@ -99,6 +165,13 @@ async function runAgentTask(agentName, abortSignal, config) {
     }
     if (agent) agent.currentRound = i + 1;
     logger.info(`[${agentName}] ── Round ${i + 1} of ${totalRounds} ──`);
+
+    // Set current view info for live progress display
+    if (agent) {
+      agent.currentViewDuration = config.viewDuration;
+      agent.currentViewStartTime = new Date().toISOString();
+    }
+
     const result = await startViewingHandler({
       targetUrls,
       durationInSeconds: config.viewDuration,
@@ -107,8 +180,17 @@ async function runAgentTask(agentName, abortSignal, config) {
       viewActionCount: config.viewActionCount,
       pageDefaultTimeout: config.pageDefaultTimeout,
     }, i);
+
+    // Clear view timer between rounds
+    if (agent) {
+      agent.currentViewDuration = null;
+      agent.currentViewStartTime = null;
+    }
+
     if (agent && result) {
-      agent.completedViews += result.successes;
+      agent.completedViews += result.total;
+      agent.viewsSucceeded += result.successes;
+      agent.viewsFailed += result.failures;
     }
   }
 
@@ -116,8 +198,22 @@ async function runAgentTask(agentName, abortSignal, config) {
 }
 
 function startAgent(optionalConfig) {
-  const agentName = `agent${nextAgentId}`;
-  nextAgentId += 1;
+  // Handle optional name parameter
+  let agentName;
+  if (optionalConfig && optionalConfig.name && optionalConfig.name.trim()) {
+    agentName = optionalConfig.name.trim();
+    // Validate name: only alphanumeric, hyphens, underscores
+    if (!/^[a-zA-Z0-9_-]+$/.test(agentName)) {
+      throw new Error('Agent name must contain only alphanumeric characters, hyphens, and underscores');
+    }
+    // Check for duplicate names
+    if (agents.has(agentName)) {
+      throw new Error(`Agent name '${agentName}' is already in use`);
+    }
+  } else {
+    agentName = `agent${nextAgentId}`;
+    nextAgentId += 1;
+  }
 
   const requestedBatch = (optionalConfig && optionalConfig.batchCount) || BATCH_COUNT;
   const batchCount = Math.min(requestedBatch, BATCH_COUNT);
@@ -135,17 +231,57 @@ function startAgent(optionalConfig) {
 
   const abortSignal = { aborted: false };
 
+  const agentObj = {
+    name: agentName,
+    status: 'running',
+    startTime: new Date(),
+    endTime: null,
+    abortSignal,
+    promise: null,
+    config,
+    currentRound: 0,
+    totalRounds: Math.ceil(config.totalCount / config.batchCount),
+    completedViews: 0,
+    totalViews: config.totalCount,
+    videoTitle: null,
+    torExitIps: [],
+    viewsSucceeded: 0,
+    viewsFailed: 0,
+    viewCounts: {},
+    currentViewDuration: null,
+    currentViewStartTime: null,
+  };
+
+  agents.set(agentName, agentObj);
+
+  // Fetch video title asynchronously (best-effort)
+  const videoUrl = config.videoUrl;
+  if (videoUrl) {
+    fetchVideoTitle(videoUrl).then((title) => {
+      const agent = agents.get(agentName);
+      if (agent) agent.videoTitle = title;
+    });
+  }
+
   const promise = runAgentTask(agentName, abortSignal, config)
       .then(() => {
         const agent = agents.get(agentName);
         if (agent) {
           agent.status = agent.status === 'stopping' ? 'stopped' : 'completed';
+          agent.endTime = new Date();
+          agent.currentViewDuration = null;
+          agent.currentViewStartTime = null;
           logger.info(`[${agentName}] Finished (${agent.status})`);
         }
       })
       .catch((err) => {
         const agent = agents.get(agentName);
-        if (agent) agent.status = 'failed';
+        if (agent) {
+          agent.status = 'failed';
+          agent.endTime = new Date();
+          agent.currentViewDuration = null;
+          agent.currentViewStartTime = null;
+        }
         logger.error(`[${agentName}] Failed: ${err.message || err}`);
       })
       .finally(() => {
@@ -154,18 +290,7 @@ function startAgent(optionalConfig) {
         setTimeout(cleanupIfIdle, 5000);
       });
 
-  agents.set(agentName, {
-    name: agentName,
-    status: 'running',
-    startTime: new Date(),
-    abortSignal,
-    promise,
-    config,
-    currentRound: 0,
-    totalRounds: Math.ceil(config.totalCount / config.batchCount),
-    completedViews: 0,
-    totalViews: config.totalCount,
-  });
+  agentObj.promise = promise;
 
   evictOldAgents();
   logger.info(`[${agentName}] Agent created and running`);
@@ -199,23 +324,38 @@ function removeAgent(agentName) {
 }
 
 function listAgents() {
-  return Array.from(agents.values()).map((a) => ({
-    name: a.name,
-    status: a.status,
-    startTime: a.startTime.toISOString(),
-    config: {
-      videoUrl: a.config.videoUrl,
-      batchCount: a.config.batchCount,
-      totalCount: a.config.totalCount,
-      viewDuration: a.config.viewDuration,
-      viewActionCount: a.config.viewActionCount,
-      pageDefaultTimeout: a.config.pageDefaultTimeout,
-    },
-    currentRound: a.currentRound,
-    totalRounds: a.totalRounds,
-    completedViews: a.completedViews,
-    totalViews: a.totalViews,
-  }));
+  return Array.from(agents.values()).map((a) => {
+    const sessionDuration = a.endTime ?
+      Math.floor((a.endTime.getTime() - a.startTime.getTime()) / 1000) :
+      null;
+
+    return {
+      name: a.name,
+      status: a.status,
+      startTime: a.startTime.toISOString(),
+      endTime: a.endTime ? a.endTime.toISOString() : null,
+      config: {
+        videoUrl: a.config.videoUrl,
+        batchCount: a.config.batchCount,
+        totalCount: a.config.totalCount,
+        viewDuration: a.config.viewDuration,
+        viewActionCount: a.config.viewActionCount,
+        pageDefaultTimeout: a.config.pageDefaultTimeout,
+      },
+      currentRound: a.currentRound,
+      totalRounds: a.totalRounds,
+      completedViews: a.completedViews,
+      totalViews: a.totalViews,
+      videoTitle: a.videoTitle || null,
+      torExitIps: a.torExitIps || [],
+      viewsSucceeded: a.viewsSucceeded || 0,
+      viewsFailed: a.viewsFailed || 0,
+      viewCounts: a.viewCounts || {},
+      sessionDuration,
+      currentViewDuration: a.currentViewDuration || null,
+      currentViewStartTime: a.currentViewStartTime || null,
+    };
+  });
 }
 
 function getAgent(agentName) {

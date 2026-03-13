@@ -107,6 +107,7 @@ services:
       # Default true — this file is the tunnel variant
       - TUNNEL_ENABLED=${TUNNEL_ENABLED:-true}
       - VPS_IP=${VPS_IP}
+      - VPS_WG_PORT=${VPS_WG_PORT:-51821}
     networks:
       - ytnet
     healthcheck:
