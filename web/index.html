@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0f18;--card:#161929;--border:#252840;--accent:#6366f1;
+  --text:#e2e8f0;--muted:#64748b;--danger:#ef4444;--success:#22c55e;--warn:#f59e0b;
+  --mono:'JetBrains Mono','Fira Code','Cascadia Code',monospace;
+  --font:'Inter',system-ui,-apple-system,sans-serif;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.5;overflow:hidden}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ── Header ─────────────────────────────────── */
+.header{position:fixed;top:0;left:0;right:0;height:56px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;z-index:100}
+.header-left{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px}
+.header-left svg{width:22px;height:22px}
+.status-pill{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px}
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.status-dot.active{background:var(--success)}
+.status-dot.idle{background:var(--muted)}
+
+/* ── Layout ─────────────────────────────────── */
+.main{display:flex;gap:20px;padding:20px;margin-top:56px;height:calc(100vh - 56px)}
+.col-left{flex:0 0 60%;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding-right:4px}
+.col-right{flex:0 0 calc(40% - 20px);display:flex;flex-direction:column;min-height:0}
+
+/* ── Cards ──────────────────────────────────── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.4);overflow:hidden}
+.card-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-weight:600;font-size:14px}
+.card-body{padding:16px 18px}
+.card-title-badge{background:var(--accent);color:#fff;font-size:11px;padding:2px 8px;border-radius:20px;margin-left:8px;font-weight:500}
+
+/* ── Form ───────────────────────────────────── */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-bottom:4px}
+.form-input{width:100%;background:#0f1121;border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:var(--font);outline:none;transition:border-color 0.15s ease}
+.form-input:focus{border-color:var(--accent)}
+.form-input.error{border-color:var(--danger)}
+.form-error{color:var(--danger);font-size:11px;margin-top:4px;min-height:16px}
+.form-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:600;transition:all 0.15s ease}
+.btn-primary{background:var(--accent);color:#fff;width:100%}
+.btn-primary:hover:not(:disabled){background:#5558e6}
+.btn-primary:disabled{opacity:0.6;cursor:not-allowed}
+.btn-sm{padding:5px 12px;font-size:12px;border-radius:6px}
+.btn-danger{background:transparent;border:1px solid var(--danger);color:var(--danger)}
+.btn-danger:hover{background:var(--danger);color:#fff}
+.btn-stop{background:transparent;border:1px solid var(--warn);color:var(--warn)}
+.btn-stop:hover{background:var(--warn);color:#000}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.btn-ghost:hover{border-color:var(--muted);color:var(--text)}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Agent cards ────────────────────────────── */
+.agent-card{margin-bottom:12px}
+.agent-card.running{border-left:3px solid var(--accent);background:rgba(99,102,241,0.04)}
+.agent-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.agent-name{font-family:var(--mono);font-weight:700;font-size:14px}
+.badge{font-size:11px;padding:3px 6px;border-radius:20px;color:#fff;font-weight:500;display:inline-block}
+.badge-running{background:#16a34a}
+.badge-stopping{background:#d97706}
+.badge-stopped{background:#374151}
+.badge-completed{background:#6366f1}
+.badge-failed{background:#dc2626}
+.agent-url{font-size:12px;color:var(--muted);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.agent-url a{color:var(--muted)}
+.agent-url a:hover{color:var(--accent)}
+.progress-row{display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:12px}
+.progress-label{color:var(--muted);width:48px;flex-shrink:0}
+.progress-val{font-family:var(--mono);width:64px;flex-shrink:0;text-align:right}
+.progress-track{flex:1;height:4px;background:#1e2138;border-radius:6px;overflow:hidden}
+.progress-fill{height:100%;background:var(--accent);border-radius:6px;transition:width 0.4s ease}
+.agent-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:12px}
+.agent-uptime{color:var(--muted)}
+.agent-actions{display:flex;align-items:center;gap:8px}
+.confirm-inline{font-size:12px;display:flex;align-items:center;gap:6px}
+.confirm-inline span{color:var(--muted)}
+.confirm-yes{color:var(--danger);cursor:pointer;font-weight:600}
+.confirm-yes:hover{text-decoration:underline}
+.confirm-cancel{color:var(--muted);cursor:pointer}
+.confirm-cancel:hover{color:var(--text)}
+
+/* ── Empty state ────────────────────────────── */
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted)}
+.empty-state svg{width:48px;height:48px;margin-bottom:12px;opacity:0.4}
+
+/* ── Log panel ──────────────────────────────── */
+.log-card{display:flex;flex-direction:column;flex:1;min-height:0}
+.log-card .card-body{flex:1;display:flex;flex-direction:column;padding:0;min-height:0}
+.log-controls{display:flex;align-items:center;gap:8px}
+.log-dot{width:8px;height:8px;border-radius:50%;margin-right:4px}
+.log-dot.connected{background:var(--success)}
+.log-dot.reconnecting{background:var(--warn)}
+.log-dot.disconnected{background:var(--danger)}
+.log-body{flex:1;background:#0a0c14;font-family:var(--mono);font-size:12px;line-height:1.6;padding:12px;overflow-y:auto;min-height:0}
+.log-line{white-space:pre-wrap;word-break:break-all}
+.log-ts{color:#4b5563}
+.log-lvl-INFO{color:#e2e8f0}
+.log-lvl-SUCCESS{color:#4ade80}
+.log-lvl-WARN{color:#fbbf24}
+.log-lvl-ERROR{color:#f87171}
+.log-lvl-DEBUG{color:#c084fc}
+
+/* ── Toast ──────────────────────────────────── */
+.toast-container{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{min-width:280px;max-width:400px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;box-shadow:0 4px 24px rgba(0,0,0,0.4);border-left:4px solid var(--accent);pointer-events:auto;animation:toastIn 0.25s ease}
+.toast.error{border-left-color:var(--danger)}
+.toast.success{border-left-color:var(--success)}
+.toast.info{border-left-color:var(--accent)}
+.toast.dismissing{animation:toastOut 0.3s ease forwards}
+.toast-msg{font-size:13px}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toastOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(10px)}}
+
+/* ── Responsive ─────────────────────────────── */
+@media(max-width:1279px){
+  .main{flex-direction:column}
+  .col-left,.col-right{flex:none;width:100%}
+  .col-right{height:400px}
+  .form-grid{grid-template-columns:repeat(3,1fr)}
+}
+/* Tooltip */
+[data-tooltip]{position:relative}
+[data-tooltip]:hover::after{content:attr(data-tooltip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#1e2138;color:var(--text);padding:4px 8px;border-radius:6px;font-size:11px;white-space:nowrap;z-index:10;pointer-events:none;border:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<!-- ── Header ───────────────────────────────────────────────────────── -->
+<header class="header">
+  <div class="header-left">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="var(--accent)" stroke="var(--accent)"/></svg>
+    YouTube Viewer
+  </div>
+  <div class="status-pill">
+    <span class="status-dot idle" id="headerDot"></span>
+    <span id="headerActive">0 active</span>
+    <span style="color:var(--muted)" id="headerUptime">up 0m</span>
+  </div>
+</header>
+
+<!-- ── Main layout ──────────────────────────────────────────────────── -->
+<div class="main">
+  <!-- Left column -->
+  <div class="col-left">
+    <!-- New Agent form -->
+    <div class="card">
+      <div class="card-header">New Agent</div>
+      <div class="card-body">
+        <div class="form-group">
+          <label class="form-label">YouTube URL</label>
+          <input type="text" id="urlInput" class="form-input" placeholder="https://www.youtube.com/watch?v=...">
+          <div class="form-error" id="urlError"></div>
+        </div>
+        <div class="form-grid">
+          <div data-tooltip="Number of parallel browser instances">
+            <label class="form-label">Batch Count</label>
+            <input type="number" id="batchCount" class="form-input" value="6" min="1">
+          </div>
+          <div data-tooltip="Total number of view actions to perform">
+            <label class="form-label">Total Count</label>
+            <input type="number" id="totalCount" class="form-input" value="96" min="1">
+          </div>
+          <div data-tooltip="Average seconds to watch per video, ±16.6% randomness">
+            <label class="form-label">View Duration</label>
+            <input type="number" id="viewDuration" class="form-input" value="50" min="1">
+          </div>
+          <div data-tooltip="Videos watched per browser session">
+            <label class="form-label">Videos / Session</label>
+            <input type="number" id="viewActionCount" class="form-input" value="10" min="1">
+          </div>
+          <div data-tooltip="Max seconds to wait for page actions">
+            <label class="form-label">Page Timeout</label>
+            <input type="number" id="pageDefaultTimeout" class="form-input" value="600" min="10">
+          </div>
+        </div>
+        <button class="btn btn-primary" id="createBtn" onclick="createAgent()">Create Agent</button>
+      </div>
+    </div>
+
+    <!-- Agents list -->
+    <div class="card">
+      <div class="card-header">Agents <span class="card-title-badge" id="agentCountBadge">0</span></div>
+      <div class="card-body" id="agentList">
+        <div class="empty-state" id="emptyState">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          <div>No agents yet — create one above.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right column -->
+  <div class="col-right">
+    <div class="card log-card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="log-dot connected" id="logDot"></span>
+          Live Log
+        </div>
+        <div class="log-controls">
+          <button class="btn btn-sm btn-ghost" id="pauseBtn" onclick="togglePause()">Pause</button>
+          <button class="btn btn-sm btn-ghost" onclick="clearLog()">Clear</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="log-body" id="logBody"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+(function() {
+  // ── State ────────────────────────────────────────────────────────
+  var agents = [];
+  var paused = false;
+  var pauseBuffer = [];
+  var logLines = 0;
+  var MAX_LOG_LINES = 1000;
+  var autoScroll = true;
+  var sseStatus = 'connected'; // connected | reconnecting | disconnected
+  var reconnectAttempts = 0;
+  var eventSource = null;
+  var reconnectTimer = null;
+  var confirmState = {}; // agentName -> 'stop'|'remove'|null
+  var intervals = [];
+
+  // ── Helpers ──────────────────────────────────────────────────────
+  function formatUptime(seconds) {
+    if (seconds < 60) return seconds + 's';
+    var m = Math.floor(seconds / 60);
+    var s = seconds % 60;
+    if (m < 60) return m + 'm ' + s + 's';
+    var h = Math.floor(m / 60);
+    var rm = m % 60;
+    return h + 'h ' + rm + 'm';
+  }
+
+  function formatTimeSince(iso) {
+    var diff = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+    return 'running for ' + formatUptime(diff);
+  }
+
+  function escapeHtml(str) {
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(str));
+    return d.innerHTML;
+  }
+
+  // ── Toast ────────────────────────────────────────────────────────
+  function showToast(message, type) {
+    var container = document.getElementById('toastContainer');
+    var t = document.createElement('div');
+    t.className = 'toast ' + (type || 'info');
+    t.innerHTML = '<div class="toast-msg">' + escapeHtml(message) + '</div>';
+    container.appendChild(t);
+    setTimeout(function() {
+      t.classList.add('dismissing');
+      setTimeout(function() { t.remove(); }, 300);
+    }, 4000);
+  }
+
+  // ── API calls ───────────────────────────────────────────────────
+  async function fetchStatus() {
+    try {
+      var res = await fetch('/api/status');
+      var data = await res.json();
+      document.getElementById('headerActive').textContent = data.activeAgents + ' active';
+      document.getElementById('headerUptime').textContent = 'up ' + formatUptime(data.uptime);
+      var dot = document.getElementById('headerDot');
+      if (data.activeAgents > 0) {
+        dot.className = 'status-dot active';
+      } else {
+        dot.className = 'status-dot idle';
+      }
+    } catch (e) { /* silent */ }
+  }
+
+  async function fetchAgents() {
+    try {
+      var res = await fetch('/api/agents');
+      agents = await res.json();
+      renderAgents();
+    } catch (e) { /* silent */ }
+  }
+
+  window.createAgent = async function() {
+    var urlInput = document.getElementById('urlInput');
+    var urlError = document.getElementById('urlError');
+    var btn = document.getElementById('createBtn');
+    var url = urlInput.value.trim();
+
+    // Validation
+    urlError.textContent = '';
+    urlInput.classList.remove('error');
+    if (!url) {
+      urlInput.classList.add('error');
+      urlError.textContent = 'YouTube URL is required';
+      return;
+    }
+    if (!/^https:\/\//.test(url) || !(url.indexOf('youtube.com/watch') !== -1 || url.indexOf('youtube.com/shorts/') !== -1 || url.indexOf('youtube.com/live/') !== -1)) {
+      urlInput.classList.add('error');
+      urlError.textContent = 'Enter a valid YouTube URL (watch, shorts, or live)';
+      return;
+    }
+
+    // Check number minimums
+    var numFields = [
+      {id:'batchCount',min:1},{id:'totalCount',min:1},{id:'viewDuration',min:1},
+      {id:'viewActionCount',min:1},{id:'pageDefaultTimeout',min:10}
+    ];
+    for (var f = 0; f < numFields.length; f++) {
+      var el = document.getElementById(numFields[f].id);
+      if (parseInt(el.value, 10) < numFields[f].min) {
+        showToast('Invalid value for ' + el.previousElementSibling.textContent, 'error');
+        return;
+      }
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Creating...';
+
+    try {
+      var res = await fetch('/api/agents', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          youtubeUrl: url,
+          batchCount: parseInt(document.getElementById('batchCount').value, 10),
+          totalCount: parseInt(document.getElementById('totalCount').value, 10),
+          viewDuration: parseInt(document.getElementById('viewDuration').value, 10),
+          viewActionCount: parseInt(document.getElementById('viewActionCount').value, 10),
+          pageDefaultTimeout: parseInt(document.getElementById('pageDefaultTimeout').value, 10),
+        })
+      });
+      var data = await res.json();
+      if (data.success) {
+        showToast('Agent ' + data.name + ' started', 'success');
+        urlInput.value = '';
+        fetchAgents();
+      } else {
+        showToast(data.error || 'Failed to create agent', 'error');
+      }
+    } catch (e) {
+      showToast('Network error: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Create Agent';
+    }
+  };
+
+  window.stopAgent = function(name) {
+    confirmState[name] = 'stop';
+    renderAgents();
+  };
+
+  window.removeAgent = function(name) {
+    confirmState[name] = 'remove';
+    renderAgents();
+  };
+
+  window.cancelConfirm = function(name) {
+    delete confirmState[name];
+    renderAgents();
+  };
+
+  window.confirmStop = async function(name) {
+    delete confirmState[name];
+    try {
+      var res = await fetch('/api/agents/' + encodeURIComponent(name) + '/stop', {method:'POST'});
+      var data = await res.json();
+      if (data.success) {
+        showToast('Agent ' + name + ' will stop after current round', 'info');
+      } else {
+        showToast(data.message || 'Failed to stop agent', 'error');
+      }
+      fetchAgents();
+    } catch (e) {
+      showToast('Network error: ' + e.message, 'error');
+    }
+  };
+
+  window.confirmRemove = async function(name) {
+    delete confirmState[name];
+    try {
+      var res = await fetch('/api/agents/' + encodeURIComponent(name), {method:'DELETE'});
+      var data = await res.json();
+      if (data.success) {
+        showToast('Agent ' + name + ' removed', 'info');
+      } else {
+        showToast(data.message || 'Failed to remove agent', 'error');
+      }
+      fetchAgents();
+    } catch (e) {
+      showToast('Network error: ' + e.message, 'error');
+    }
+  };
+
+  // ── Render agents ───────────────────────────────────────────────
+  function renderAgents() {
+    var container = document.getElementById('agentList');
+    var badge = document.getElementById('agentCountBadge');
+    badge.textContent = agents.length;
+
+    if (agents.length === 0) {
+      container.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/><line x1="1" y1="1" x2="23" y2="23"/></svg><div>No agents yet — create one above.</div></div>';
+      return;
+    }
+
+    var html = '';
+    for (var i = 0; i < agents.length; i++) {
+      var a = agents[i];
+      var isRunning = a.status === 'running';
+      var isStopping = a.status === 'stopping';
+      var isFinished = a.status === 'stopped' || a.status === 'completed' || a.status === 'failed';
+      var badgeClass = 'badge badge-' + a.status;
+      var cardClass = 'card agent-card' + (isRunning ? ' running' : '');
+
+      var roundPct = a.totalRounds > 0 ? Math.round((a.currentRound / a.totalRounds) * 100) : 0;
+      var viewPct = a.totalViews > 0 ? Math.round((a.completedViews / a.totalViews) * 100) : 0;
+
+      var urlDisplay = (a.config && a.config.youtubeUrl) || '(env default)';
+      var urlLink = (a.config && a.config.youtubeUrl) ? '<a href="' + escapeHtml(a.config.youtubeUrl) + '" target="_blank" rel="noopener">' + escapeHtml(a.config.youtubeUrl) + '</a>' : escapeHtml(urlDisplay);
+
+      var actions = '';
+      if (confirmState[a.name] === 'stop') {
+        actions = '<div class="confirm-inline"><span>Are you sure?</span> <a class="confirm-yes" onclick="confirmStop(\'' + a.name + '\')">Yes</a> <a class="confirm-cancel" onclick="cancelConfirm(\'' + a.name + '\')">Cancel</a></div>';
+      } else if (confirmState[a.name] === 'remove') {
+        actions = '<div class="confirm-inline"><span>Are you sure?</span> <a class="confirm-yes" onclick="confirmRemove(\'' + a.name + '\')">Yes</a> <a class="confirm-cancel" onclick="cancelConfirm(\'' + a.name + '\')">Cancel</a></div>';
+      } else if (isRunning) {
+        actions = '<button class="btn btn-sm btn-stop" onclick="stopAgent(\'' + a.name + '\')">Stop</button>';
+      } else if (isStopping) {
+        actions = '<button class="btn btn-sm btn-ghost" disabled><span class="spinner" style="width:12px;height:12px;border-width:1.5px"></span> Stopping\u2026</button>';
+      } else if (isFinished) {
+        actions = '<button class="btn btn-sm btn-danger" onclick="removeAgent(\'' + a.name + '\')">Remove</button>';
+      }
+
+      html += '<div class="' + cardClass + '">' +
+        '<div class="card-body">' +
+          '<div class="agent-top"><span class="agent-name">' + escapeHtml(a.name) + '</span><span class="' + badgeClass + '">' + a.status + '</span></div>' +
+          '<div class="agent-url"><span style="color:var(--muted);margin-right:4px">URL</span> ' + urlLink + '</div>' +
+          '<div class="progress-row"><span class="progress-label">Rounds</span><span class="progress-val">' + a.currentRound + ' / ' + a.totalRounds + '</span><div class="progress-track"><div class="progress-fill" style="width:' + roundPct + '%"></div></div></div>' +
+          '<div class="progress-row"><span class="progress-label">Views</span><span class="progress-val">' + a.completedViews + ' / ' + a.totalViews + '</span><div class="progress-track"><div class="progress-fill" style="width:' + viewPct + '%"></div></div></div>' +
+          '<div class="agent-bottom"><span class="agent-uptime" data-start="' + a.startTime + '">' + (isRunning || isStopping ? formatTimeSince(a.startTime) : '') + '</span><div class="agent-actions">' + actions + '</div></div>' +
+        '</div></div>';
+    }
+    container.innerHTML = html;
+  }
+
+  // ── Uptime ticker (shared interval) ─────────────────────────────
+  function updateUptimes() {
+    var els = document.querySelectorAll('.agent-uptime[data-start]');
+    for (var i = 0; i < els.length; i++) {
+      var start = els[i].getAttribute('data-start');
+      if (start) {
+        // Only update for running/stopping agents (those with text)
+        var card = els[i].closest('.agent-card');
+        if (card && card.classList.contains('running')) {
+          els[i].textContent = formatTimeSince(start);
+        }
+      }
+    }
+  }
+
+  // ── Log panel ───────────────────────────────────────────────────
+  var logBody = document.getElementById('logBody');
+
+  function appendLogLine(entry) {
+    if (paused) {
+      pauseBuffer.push(entry);
+      return;
+    }
+    addLogDom(entry);
+  }
+
+  function addLogDom(entry) {
+    var div = document.createElement('div');
+    div.className = 'log-line';
+    var ts = entry.timestamp ? entry.timestamp.substring(11, 19) : '';
+    var lvl = entry.level || 'INFO';
+    div.innerHTML = '<span class="log-ts">' + escapeHtml(ts) + '</span> <span class="log-lvl-' + lvl + '">[' + lvl + ']</span> ' + escapeHtml(entry.message || '');
+    logBody.appendChild(div);
+    logLines++;
+    while (logLines > MAX_LOG_LINES) {
+      var first = logBody.firstChild;
+      if (first) { logBody.removeChild(first); logLines--; }
+      else break;
+    }
+    if (autoScroll) {
+      logBody.scrollTop = logBody.scrollHeight;
+    }
+  }
+
+  logBody.addEventListener('scroll', function() {
+    var distFromBottom = logBody.scrollHeight - logBody.scrollTop - logBody.clientHeight;
+    autoScroll = distFromBottom < 50;
+  });
+
+  window.togglePause = function() {
+    paused = !paused;
+    var btn = document.getElementById('pauseBtn');
+    btn.textContent = paused ? 'Resume' : 'Pause';
+    if (!paused) {
+      for (var i = 0; i < pauseBuffer.length; i++) {
+        addLogDom(pauseBuffer[i]);
+      }
+      pauseBuffer = [];
+    }
+  };
+
+  window.clearLog = function() {
+    logBody.innerHTML = '';
+    logLines = 0;
+  };
+
+  // ── URL input clear error on type ───────────────────────────────
+  document.getElementById('urlInput').addEventListener('input', function() {
+    this.classList.remove('error');
+    document.getElementById('urlError').textContent = '';
+  });
+
+  // ── SSE connection ──────────────────────────────────────────────
+  function updateLogDot() {
+    var dot = document.getElementById('logDot');
+    dot.className = 'log-dot ' + sseStatus;
+  }
+
+  function connectSSE() {
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    eventSource = new EventSource('/api/logs/stream');
+    eventSource.onopen = function() {
+      sseStatus = 'connected';
+      reconnectAttempts = 0;
+      updateLogDot();
+    };
+    eventSource.onmessage = function(e) {
+      try {
+        var entry = JSON.parse(e.data);
+        appendLogLine(entry);
+      } catch (err) { /* ignore bad data */ }
+    };
+    eventSource.onerror = function() {
+      eventSource.close();
+      eventSource = null;
+      reconnectAttempts++;
+      sseStatus = reconnectAttempts > 1 ? 'disconnected' : 'reconnecting';
+      updateLogDot();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connectSSE, 3000);
+    };
+  }
+
+  // ── Init ────────────────────────────────────────────────────────
+  fetchStatus();
+  fetchAgents();
+  connectSSE();
+
+  var statusInterval = setInterval(fetchStatus, 5000);
+  var agentInterval = setInterval(fetchAgents, 3000);
+  var uptimeInterval = setInterval(updateUptimes, 1000);
+  intervals.push(statusInterval, agentInterval, uptimeInterval);
+
+  window.addEventListener('beforeunload', function() {
+    for (var i = 0; i < intervals.length; i++) clearInterval(intervals[i]);
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    if (eventSource) eventSource.close();
+  });
+})();
+</script>
+</body>
+</html>
