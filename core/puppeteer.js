@@ -7,17 +7,24 @@ puppeteer.use(stealthPlugin());
 // In order to run chromium processes in parallel. https://github.com/puppeteer/puppeteer/issues/594#issuecomment-325919885
 process.setMaxListeners(Infinity);
 
-const getBrowserInstance = async (port) => {
+const getBrowserInstance = async (port, browserPids) => {
   const useTorProxy = IS_PROD && TOR_ENABLED;
   const browser = await puppeteer.launch({
     args: useTorProxy ? ['--no-sandbox', `--proxy-server=socks5://${TOR_HOST}:${port}`] : ['--no-sandbox'],
     devtools: !IS_PROD,
     executablePath: IS_PROD ? '/usr/bin/chromium-browser' : undefined,
   });
+
+  const pid = browser.process() ? browser.process().pid : null;
+  if (browserPids && pid) browserPids.add(pid);
+
   const incognitoBrowserContext = typeof browser.createBrowserContext === 'function'
     ? browser.createBrowserContext()
     : browser.createIncognitoBrowserContext();
-  incognitoBrowserContext.close = browser.close;
+  incognitoBrowserContext.close = () => {
+    if (browserPids && pid) browserPids.delete(pid);
+    return browser.close();
+  };
   return incognitoBrowserContext;
 };
 

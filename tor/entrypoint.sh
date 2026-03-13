@@ -157,18 +157,23 @@ mkdir -p /etc/tor /var/lib/tor
 chown -R tor:tor /var/lib/tor
 chmod 700 /var/lib/tor
 
-# Write torrc configuration — use info-level logging so circuit & stream
-# events are visible, making it clear when the ytviewer is using Tor.
+# Generate hashed control password for Tor ControlPort
+TOR_CONTROL_PASSWORD="${TOR_CONTROL_PASSWORD:-npcviewers}"
+HASHED_PW=$(tor --hash-password "$TOR_CONTROL_PASSWORD" 2>/dev/null | tail -1)
+log "Generated Tor control port password hash"
+
+# Write torrc configuration
 cat > /etc/tor/torrc <<EOF
 User tor
 DataDirectory /var/lib/tor
 Log notice stdout
-# Log every new SOCKS connection and circuit at info level
 Log info stdout
-# Bootstrap progress to file — used by the Docker healthcheck to verify Tor is ready
 Log notice file /tmp/tor_bootstrap.log
-# Show safe-logging off so we can see connection details (non-sensitive in this context)
 SafeLogging 0
+
+# Control port for NEWNYM circuit rotation signals from the viewer app
+ControlPort 0.0.0.0:9051
+HashedControlPassword ${HASHED_PW}
 EOF
 
 for i in $(seq 0 $((NUM_PORTS - 1))); do
@@ -184,7 +189,7 @@ cat /etc/tor/torrc
 log "============================================"
 log " Starting Tor daemon"
 log "============================================"
-log "When the ytviewer container connects, you will see"
+log "When the NPC Viewers container connects, you will see"
 log "  'New SOCKS connection' lines in this log."
 log "If you do NOT see them, the viewer is not routing through Tor."
 if [ "$TUNNEL_ENABLED" = "true" ]; then

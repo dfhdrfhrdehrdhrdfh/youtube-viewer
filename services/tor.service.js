@@ -11,8 +11,12 @@ const {
 // When TOR_HOST is not localhost, Tor is running in a separate container
 const isExternalTor = TOR_HOST !== '127.0.0.1';
 
-// The ytviewer container's own public IP (direct, no proxy). Fetched once at startup.
+// The container's own public IP (direct, no proxy). Fetched once at startup.
 let _containerDirectIp = null;
+
+// Tor control port password for NEWNYM circuit rotation
+const TOR_CONTROL_PASSWORD = process.env.TOR_CONTROL_PASSWORD || 'npcviewers';
+const TOR_CONTROL_PORT = 9051;
 
 // Timeout for the direct uplink IP check (ms). Kept short so startup is not blocked long.
 const UPLINK_IP_CHECK_TIMEOUT_MS = 8000;
@@ -67,6 +71,69 @@ const probeSocksPort = (host, port, timeoutMs = 5000) => new Promise((resolve) =
 });
 
 /**
+ * Request a new Tor circuit via the Tor ControlPort (SIGNAL NEWNYM).
+ * This forces Tor to build new circuits, resulting in new exit IPs.
+ * @return {Promise<boolean>} Whether the NEWNYM signal was accepted.
+ */
+const requestNewCircuit = () => new Promise((resolve) => {
+  if (!TOR_ENABLED) {
+    resolve(false);
+    return;
+  }
+
+  const sock = new net.Socket();
+  let state = 'auth';
+  let responded = false;
+
+  const finish = (success) => {
+    if (responded) return;
+    responded = true;
+    sock.destroy();
+    resolve(success);
+  };
+
+  sock.setTimeout(10000);
+  sock.connect(TOR_CONTROL_PORT, TOR_HOST);
+
+  sock.on('connect', () => {
+    sock.write(`AUTHENTICATE "${TOR_CONTROL_PASSWORD}"\r\n`);
+  });
+
+  sock.on('data', (chunk) => {
+    const lines = chunk.toString().split('\r\n').filter(Boolean);
+    for (const line of lines) {
+      if (state === 'auth') {
+        if (line.startsWith('250')) {
+          state = 'newnym';
+          sock.write('SIGNAL NEWNYM\r\n');
+        } else {
+          logger.warn(`Tor control auth failed: ${line}`);
+          finish(false);
+        }
+      } else if (state === 'newnym') {
+        if (line.startsWith('250')) {
+          logger.info('Tor NEWNYM signal accepted — new circuits will be built');
+          finish(true);
+        } else {
+          logger.warn(`Tor NEWNYM failed: ${line}`);
+          finish(false);
+        }
+      }
+    }
+  });
+
+  sock.on('error', (err) => {
+    logger.debug(`Tor control connection error: ${err.message}`);
+    finish(false);
+  });
+
+  sock.on('timeout', () => {
+    logger.debug('Tor control connection timed out');
+    finish(false);
+  });
+});
+
+/**
  * Verify connectivity to all Tor SOCKS proxy ports and log results.
  */
 const verifyTorConnectivity = async (startPort, count) => {
@@ -94,9 +161,9 @@ const verifyTorConnectivity = async (startPort, count) => {
     logger.success(`All ${count} Tor SOCKS ports are reachable on ${TOR_HOST}.`);
     logger.info('Chromium browsers will be configured with --proxy-server=socks5://' + `${TOR_HOST}:<port>`);
     if (TUNNEL_ENABLED) {
-      logger.info(`Tunnel routing: ytviewer → tor (${TOR_HOST}) → WireGuard → VPS → Internet`);
+      logger.info(`Tunnel routing: npc-viewers → tor (${TOR_HOST}) → WireGuard → VPS → Internet`);
     } else {
-      logger.info('Tunnel routing: ytviewer → tor → Internet (direct)');
+      logger.info('Tunnel routing: npc-viewers → tor → Internet (direct)');
     }
   } else {
     logger.warn('Some Tor SOCKS ports are unreachable. Affected batches will fail.');
@@ -110,8 +177,8 @@ const verifyTorConnectivity = async (startPort, count) => {
   _containerDirectIp = uplinkIp;
   logger.info(`  Container direct IP : ${uplinkIp}`);
   if (TUNNEL_ENABLED) {
-    logger.info('  ↳ Note: This is the ytviewer container\'s own IP (NOT tunneled).');
-    logger.info('    The ytviewer does not route through the WireGuard tunnel.');
+    logger.info('  ↳ Note: This is the NPC Viewers container\'s own IP (NOT tunneled).');
+    logger.info('    The NPC Viewers container does not route through the WireGuard tunnel.');
     if (VPS_IP) {
       logger.info(`    To verify the tunnel: check tor-proxy container logs — uplink IP should be ${VPS_IP}`);
     } else {
@@ -212,5 +279,6 @@ const startTor = async () => {
 };
 
 module.exports = {
-  writeTorConfig, stopTor, startTor, verifyTorConnectivity, waitForTor, getContainerDirectIp,
+  writeTorConfig, stopTor, startTor, verifyTorConnectivity, waitForTor,
+  getContainerDirectIp, requestNewCircuit,
 };

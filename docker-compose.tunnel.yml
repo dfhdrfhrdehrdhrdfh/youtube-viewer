@@ -19,8 +19,8 @@
 #   docker-compose -f docker-compose.tunnel.yml up -d
 #
 # Architecture:
-#   ytviewer → tor → wg-tunnel ═══WireGuard═══▶ VPS (wg-server) → Internet
-#           ytnet
+#   npcviewers → tor → wg-tunnel ═══WireGuard═══▶ VPS (wg-server) → Internet
+#           npcnet
 #
 # Required .env variables for tunnel:
 #   VPS_IP                — Public IP of your VPS
@@ -32,7 +32,7 @@ version: '3'
 
 services:
   wg-tunnel:
-    image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer-wg:${WG_IMAGE_TAG:-latest}
+    image: ghcr.io/dfhdrfhrdehrdhrdfh/npc-viewers-wg:${WG_IMAGE_TAG:-latest}
     container_name: wg-tunnel
     restart: unless-stopped
     cap_add:
@@ -46,10 +46,8 @@ services:
       - WG_CLIENT_PRIVATE_KEY=${WG_CLIENT_PRIVATE_KEY:?WG_CLIENT_PRIVATE_KEY must be set — get it from the VPS setup output}
       - WG_SERVER_PUBLIC_KEY=${WG_SERVER_PUBLIC_KEY:?WG_SERVER_PUBLIC_KEY must be set — get it from the VPS setup output}
     networks:
-      - ytnet
+      - npcnet
     healthcheck:
-      # Verify WireGuard peer reachability — ping is sufficient and avoids DNS
-      # dependencies that break inside the container after 0.0.0.0/1 routes are set.
       test: ["CMD-SHELL", "ping -c1 -W3 10.13.13.1 >/dev/null 2>&1"]
       interval: 10s
       timeout: 10s
@@ -57,7 +55,7 @@ services:
       start_period: 15s
 
   tor:
-    image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer-tor:${TOR_IMAGE_TAG:-latest}
+    image: ghcr.io/dfhdrfhrdehrdhrdfh/npc-viewers-tor:${TOR_IMAGE_TAG:-latest}
     container_name: tor-proxy
     restart: unless-stopped
     cap_add:
@@ -72,10 +70,11 @@ services:
       - TUNNEL_ENABLED=${TUNNEL_ENABLED:-true}
       - TUNNEL_GATEWAY=wg-tunnel
       - VPS_IP=${VPS_IP}
+      - TOR_CONTROL_PASSWORD=${TOR_CONTROL_PASSWORD:-npcviewers}
     volumes:
       - tor-data:/var/lib/tor
     networks:
-      - ytnet
+      - npcnet
     healthcheck:
       test: ["CMD-SHELL", "grep -q 'Bootstrapped 100%' /tmp/tor_bootstrap.log 2>/dev/null"]
       interval: 15s
@@ -83,8 +82,8 @@ services:
       retries: 10
       start_period: 90s
 
-  ytviewer:
-    image: ghcr.io/dfhdrfhrdehrdhrdfh/youtube-viewer:${IMAGE_TAG:-latest}
+  npcviewers:
+    image: ghcr.io/dfhdrfhrdehrdhrdfh/npc-viewers:${IMAGE_TAG:-latest}
     container_name: npc-viewers
     restart: unless-stopped
     depends_on:
@@ -94,31 +93,32 @@ services:
       - "8093:8093"
     environment:
       - NODE_ENV=production
-      - VIDEO_URLS=${VIDEO_URLS:-${YOUTUBE_URLS}}
+      - VIDEO_URLS=${VIDEO_URLS:-}
       - TOR_ENABLED=${TOR_ENABLED:-true}
       - TOR_HOST=tor
       - TOR_START_PORT=${TOR_START_PORT:-9052}
+      - TOR_CONTROL_PASSWORD=${TOR_CONTROL_PASSWORD:-npcviewers}
       - BATCH_COUNT=${BATCH_COUNT:-6}
       - TOTAL_COUNT=${TOTAL_COUNT:-96}
       - VIEW_ACTION_COUNT=${VIEW_ACTION_COUNT:-10}
       - VIEW_DURATION=${VIEW_DURATION:-50}
       - PAGE_DEFAULT_TIMEOUT=${PAGE_DEFAULT_TIMEOUT:-600}
-      - NPC_VIEWERS_FORCE_DEBUG=${NPC_VIEWERS_FORCE_DEBUG:-${YOUTUBE_VIEWER_FORCE_DEBUG:-false}}
+      - NPC_VIEWERS_FORCE_DEBUG=${NPC_VIEWERS_FORCE_DEBUG:-false}
       # Default true — this file is the tunnel variant
       - TUNNEL_ENABLED=${TUNNEL_ENABLED:-true}
       - VPS_IP=${VPS_IP}
       - VPS_WG_PORT=${VPS_WG_PORT:-51821}
     networks:
-      - ytnet
+      - npcnet
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8093/api/status || exit 1"]
-      start_period: 30s
-      interval: 15s
+      start_period: 15s
+      interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
 
 networks:
-  ytnet:
+  npcnet:
     driver: bridge
 
 volumes:
